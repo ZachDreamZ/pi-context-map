@@ -1,41 +1,73 @@
 # pi-context-map
 
-A Pi extension that transforms your session's context window into a visual, actionable dashboard.
+A visual context window mapping extension for [Pi](https://pi.dev/) that transforms your abstract token window into a concrete, actionable dashboard.
 
-## 🚀 Features
+[![Pi Package](https://img.shields.io/badge/Pi-Package-blue)](https://pi.dev/packages)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![npm version](https://img.shields.io/npm/v/pi-context-map.svg)](https://www.npmjs.com/package/pi-context-map)
 
-- **Visual Context Budget**: See exactly how your tokens are distributed between system prompts, history, files, and tool results.
-- **Working Set Analysis**: Identify which files are "Active", "Stale", or "Legacy".
-- **Token Weighting**: Discover which files are consuming the most context window space.
-- **Operation History**: Track how files entered the context (Read 👁️, Write 📝, Edit ✍️).
-- **Temporal Mapping**: See a timeline of file access to identify candidates for compaction.
+## Features
 
-## 🛠️ Installation
+- **Visual Context Budget**: Real-time breakdown of tokens used by System, History, Files, and Tool Results.
+- **Working Set Analysis**: Categorizes files as `Active`, `Stale`, or `Legacy` based on access recency.
+- **Token Weighting**: Identifies "token hogs" by calculating the approximate size of each file in the window.
+- **Operation Tracking**: Marks files with their last operation (Read 👁️, Write 📝, Edit ✍️).
+- **Temporal Mapping**: Visually maps when files entered the context to identify compaction candidates.
+
+## Installation
 
 ```bash
 pi install npm:pi-context-map
 ```
 
-## 📖 Usage
+## Quick Start
 
-Run the following command in any Pi session:
+Run the mapping command to generate your session dashboard:
 
-`/context-map`
+```bash
+/context-map
+```
 
-The extension will analyze your session and generate a standalone HTML report at:
+The extension will analyze the session and create an interactive HTML report at:
 `~/.pi/context-map/report.html`
 
-## 📊 How it Works
+## Context Statuses
 
-The extension scans the session's message history to build a map of the "Working Set":
-1. **Scanning**: Every `tool_use` call for `read`, `write`, or `edit` is tracked.
-2. **Weighting**: Content length is converted to estimated tokens.
-3. **Categorization**:
-    - **Active**: Accessed in the last 3 turns.
-    - **Stale**: Accessed in the last 10 turns.
-    - **Legacy**: Accessed > 10 turns ago.
-4. **Visualization**: Data is injected into a high-performance HTML dashboard.
+The extension categorizes files to help you manage context bloat:
 
-## ⚖️ License
+| Status | Criteria | Action |
+|--------|----------|--------|
+| **Active** | Accessed in last 3 turns | Keep in context |
+| **Stale** | Accessed 4-10 turns ago | Monitor for removal |
+| **Legacy** | Accessed > 10 turns ago | Prime candidate for compaction |
 
-MIT
+## How It Works
+
+1. **Scanning**: The analyzer iterates through the session history, identifying all `tool_use` calls involving file operations.
+2. **Weighting**: It extracts the content length of tool results and applies a token heuristic (approx. 4 chars/token).
+3. **Categorization**: It calculates the temporal distance between the current turn and the last file access.
+4. **Visualization**: It generates a standalone HTML dashboard featuring a token budget bar and a file-weight grid.
+
+## Compatibility
+
+- ✅ Works with any Pi session regardless of model.
+- ✅ Compatible with `pi-ultra-compact` (use together for a "Scan $\to$ Compress" workflow).
+- ✅ Compatible with `gentle-engram` and `gentle-pi`.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- [Pi](https://pi.dev/) - The AI coding agent
