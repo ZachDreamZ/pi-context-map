@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-06-14
+### Professional Context Profiler
+- **Code-Aware Token Counting**: New `TokenCounter` module applies multipliers for code blocks (1.3x) and JSON (1.5x) for more accurate estimation.
+- **Context Composition**: Refactored analyzer to break down context into System, Tools, History, Files, and Summaries slices.
+- **Actionable Insights Engine**: New `InsightEngine` generates 6 built-in rules (tool bloat, stale files, high usage, file-heavy, summaries, system overhead).
+- **Interactive HTML Report**: Stacked composition bar, color-coded insights section, and improved file cards.
+- **Tool + Command**: Now registers as both a slash command (`/context-map`) and a tool for programmatic agent access.
+- **Async Factory**: Updated to modern async pattern.
+
 ## [0.2.0] - 2026-06-14
 ### Professional Context Profiler
 - **Architectural Modernization**: Migrated to source-shipping (`./extensions`) and async factory function pattern.

@@ -1,8 +1,3 @@
-/**
- * ContextAnalyzer
- * Responsible for parsing Pi session messages to identify the active working set of files,
- * their token weights, and their temporal status.
- */
 export interface FileOp {
     type: "read" | "write" | "edit" | "delete";
     turn: number;
@@ -14,25 +9,28 @@ export interface FileContext {
     lastOp: FileOp;
     status: "active" | "stale" | "legacy";
 }
-export interface ContextMap {
-    files: FileContext[];
-    totalTokens: number;
-    systemTokens: number;
-    historyTokens: number;
-    fileTokens: number;
-    toolTokens: number;
+export interface ContextSlice {
+    tokens: number;
+    percent: number;
+}
+export interface ContextComposition {
+    system: ContextSlice;
+    tools: ContextSlice;
+    history: ContextSlice;
+    files: ContextSlice;
+    summaries: ContextSlice;
+    total: ContextSlice;
+    files_detail: FileContext[];
 }
 export declare class ContextAnalyzer {
     /**
-     * Heuristic for token estimation: approx 4 chars per token.
-     */
-    private static TOKEN_HEURISTIC;
-    /**
-     * Analyze session messages to produce a context map.
+     * Analyze session messages to produce a structured ContextComposition.
      * @param messages The full session conversation history.
      * @param currentTurn The current turn number.
      */
-    analyze(messages: any[], currentTurn: number): ContextMap;
+    analyzeByType(messages: any[], currentTurn: number): ContextComposition;
+    /** Backward-compatible wrapper. */
+    analyze(messages: any[], currentTurn: number): ContextComposition;
     private extractPath;
     private getOpType;
     private calculateStatus;

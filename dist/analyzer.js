@@ -1,34 +1,51 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ContextAnalyzer = void 0;
 /**
  * ContextAnalyzer
  * Responsible for parsing Pi session messages to identify the active working set of files,
- * their token weights, and their temporal status.
+ * their token weights, and their temporal status. Uses the code-aware TokenCounter.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ContextAnalyzer = void 0;
+const token_counter_1 = require("./token-counter");
 class ContextAnalyzer {
     /**
-     * Heuristic for token estimation: approx 4 chars per token.
-     */
-    static TOKEN_HEURISTIC = 4;
-    /**
-     * Analyze session messages to produce a context map.
+     * Analyze session messages to produce a structured ContextComposition.
      * @param messages The full session conversation history.
      * @param currentTurn The current turn number.
      */
-    analyze(messages, currentTurn) {
+    analyzeByType(messages, currentTurn) {
         const fileRegistry = new Map();
-        let totalTokens = 0;
-        let fileTokens = 0;
+        let systemTokens = 0;
         let toolTokens = 0;
+        let historyTokens = 0;
+        let fileTokens = 0;
+        let summaryTokens = 0;
         messages.forEach((msg, index) => {
             const turn = index + 1;
-            // Basic token estimation for the message
-            const msgText = typeof msg.content === "string"
-                ? msg.content
-                : JSON.stringify(msg.content);
-            const msgTokens = Math.ceil(msgText.length / ContextAnalyzer.TOKEN_HEURISTIC);
-            totalTokens += msgTokens;
+            // 1. Categorize and count
+            if (msg.role === "system") {
+                systemTokens += token_counter_1.TokenCounter.countMessage(msg);
+                return;
+            }
+            if (msg.role === "tool") {
+                toolTokens += token_counter_1.TokenCounter.countMessage(msg);
+                return;
+            }
+            // Detect compaction summaries (Pi uses customType or specific role)
+            if (msg.role === "compaction" ||
+                msg.type === "compaction" ||
+                msg.compactionEntry) {
+                summaryTokens += token_counter_1.TokenCounter.countMessage(msg);
+                return;
+            }
+            if (msg.role === "user" || msg.role === "assistant") {
+                historyTokens += token_counter_1.TokenCounter.countMessage(msg);
+            }
+            else {
+                // Default to history
+                historyTokens += token_counter_1.TokenCounter.countMessage(msg);
+            }
+            // 2. File tracking (only on assistant tool_use blocks)
             if (msg.role === "assistant" && Array.isArray(msg.content)) {
                 for (const block of msg.content) {
                     if (block.type === "tool_use") {
@@ -36,11 +53,10 @@ class ContextAnalyzer {
                         const path = this.extractPath(block.name, input);
                         if (path) {
                             const opType = this.getOpType(block.name);
-                            // If the file is already tracked, update it
-                            // Find the tool result for this tool use to get actual content length
                             const result = this.findToolResult(messages, index, block.id);
                             const content = result?.content || "";
-                            const weight = Math.ceil(String(content).length / ContextAnalyzer.TOKEN_HEURISTIC);
+                            const weight = token_counter_1.TokenCounter.count(String(content));
+                            fileTokens += weight;
                             fileRegistry.set(path, {
                                 path,
                                 weight,
@@ -55,27 +71,34 @@ class ContextAnalyzer {
                     }
                 }
             }
-            if (msg.role === "tool") {
-                toolTokens += Math.ceil(String(msg.content).length / ContextAnalyzer.TOKEN_HEURISTIC);
-            }
         });
-        const files = Array.from(fileRegistry.values());
-        fileTokens = files.reduce((acc, f) => acc + f.weight, 0);
+        const totalTokens = systemTokens + toolTokens + historyTokens + fileTokens + summaryTokens;
+        const mk = (tokens) => ({
+            tokens: Math.ceil(tokens),
+            percent: totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
+        });
+        const files_detail = Array.from(fileRegistry.values())
+            .sort((a, b) => b.weight - a.weight)
+            .slice(0, 100);
         return {
-            files: files.sort((a, b) => b.weight - a.weight).slice(0, 100),
-            totalTokens,
-            systemTokens: 0, // Pi provides this via ctx, not messages
-            historyTokens: totalTokens - fileTokens - toolTokens,
-            fileTokens,
-            toolTokens,
+            system: mk(systemTokens),
+            tools: mk(toolTokens),
+            history: mk(historyTokens),
+            files: mk(fileTokens),
+            summaries: mk(summaryTokens),
+            total: mk(totalTokens),
+            files_detail,
         };
+    }
+    /** Backward-compatible wrapper. */
+    analyze(messages, currentTurn) {
+        return this.analyzeByType(messages, currentTurn);
     }
     extractPath(toolName, input) {
         if (toolName === "read" || toolName === "write" || toolName === "edit") {
             return typeof input.path === "string" ? input.path : null;
         }
         if (toolName === "bash") {
-            // Simple regex for paths in bash commands (e.g., cat path/to/file)
             const match = input.command?.match(/(?:cat|ls|rm|mv|cp|vi|nano)\s+([^\s;]+)/);
             return match ? match[1] : null;
         }
@@ -88,7 +111,7 @@ class ContextAnalyzer {
             case "edit":
                 return "edit";
             case "bash":
-                return "delete"; // Simplified; usually bash implies modification or deletion
+                return "delete";
             default:
                 return "read";
         }
@@ -102,12 +125,10 @@ class ContextAnalyzer {
         return "legacy";
     }
     findToolResult(messages, toolTurnIndex, toolId) {
-        // Look for the tool result immediately following the tool use
         for (let i = toolTurnIndex + 1; i < messages.length; i++) {
             if (messages[i].role === "tool" && messages[i].tool_call_id === toolId) {
                 return messages[i];
             }
-            // If we hit another assistant turn, the result for this specific call is likely gone/compacted
             if (messages[i].role === "assistant")
                 break;
         }

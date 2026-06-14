@@ -9,8 +9,8 @@ const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
 const node_os_1 = require("node:os");
 class ReportGenerator {
-    static generateHTML(map) {
-        const fileCards = map.files
+    static generateHTML(composition, insights) {
+        const fileCards = composition.files_detail
             .map((file) => `
 			<div class="file-card ${file.status}">
 				<div class="file-header">
@@ -28,7 +28,18 @@ class ReportGenerator {
 			</div>
 		`)
             .join("");
-        const budgetPercent = (map.fileTokens / map.totalTokens) * 100;
+        const insightCards = insights
+            .map((insight) => `
+			<div class="insight-card ${insight.severity}">
+				<div class="insight-header">
+					<span class="insight-severity">${insight.severity.toUpperCase()}</span>
+					<span class="insight-title">${ReportGenerator.escapeHtml(insight.title)}</span>
+				</div>
+				<div class="insight-body">${ReportGenerator.escapeHtml(insight.message)}</div>
+				${insight.command ? `<div class="insight-command">Suggested: <code>${insight.command}</code></div>` : ""}
+			</div>
+		`)
+            .join("");
         return `
 <!DOCTYPE html>
 <html lang="en">
@@ -75,36 +86,67 @@ class ReportGenerator {
         .stat-value { font-size: 1.5rem; font-weight: bold; display: block; }
         .stat-label { color: var(--text-dim); font-size: 0.875rem; text-transform: uppercase; }
         
-        .budget-container {
+        .composition-container {
             margin: 2rem 0;
             background: var(--card-bg);
-            padding: 1rem;
+            padding: 1.5rem;
             border-radius: 12px;
             border: 1px solid var(--border);
         }
-        .budget-bar {
-            height: 24px;
+        .composition-bar {
+            height: 32px;
             background: #020617;
-            border-radius: 12px;
+            border-radius: 8px;
             display: flex;
             overflow: hidden;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
         }
-        .budget-segment { height: 100%; transition: width 0.3s ease; }
+        .composition-segment { height: 100%; transition: width 0.3s ease; }
         .seg-system { background: #6366f1; }
+        .seg-tools { background: #ec4899; }
         .seg-history { background: #a855f7; }
         .seg-files { background: var(--primary); }
-        .seg-tools { background: #ec4899; }
-        
-        .budget-legend {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            font-size: 0.75rem;
+        .seg-summaries { background: #14b8a6; }
+
+        .composition-legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem;
+            font-size: 0.8rem;
             color: var(--text-dim);
         }
         .legend-item { display: flex; align-items: center; gap: 0.5rem; }
-        .dot { width: 8px; height: 8px; border-radius: 50%; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        .insights-section { margin: 2rem 0; }
+        .insight-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--primary);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+        .insight-card.info { border-left-color: var(--primary); }
+        .insight-card.warning { border-left-color: var(--stale); }
+        .insight-card.critical { border-left-color: var(--legacy); }
+        .insight-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+        .insight-severity {
+            font-size: 0.7rem;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+        }
+        .insight-title { font-weight: 600; }
+        .insight-body { color: var(--text); font-size: 0.9rem; }
+        .insight-command { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
+        .insight-command code {
+            background: rgba(0,0,0,0.3);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+        }
 
         .file-grid {
             display: grid;
@@ -177,43 +219,51 @@ class ReportGenerator {
 <body>
     <div class="container">
         <header>
-            <h1>Pi Context Map</h1>
-            <p style="color: var(--text-dim)">Session context window visualization and token distribution.</p>
-            
+            <h1>Pi Context Profiler</h1>
+            <p style="color: var(--text-dim)">Professional session context window analysis with actionable insights.</p>
+
             <div class="stats-grid">
                 <div class="stat-card">
-                    <span class="stat-value">${map.totalTokens.toLocaleString()}</span>
+                    <span class="stat-value">${composition.total.tokens.toLocaleString()}</span>
                     <span class="stat-label">Total Tokens</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${map.files.length}</span>
+                    <span class="stat-value">${composition.files_detail.length}</span>
                     <span class="stat-label">Files in Context</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${map.fileTokens.toLocaleString()}</span>
-                    <span class="stat-label">File Tokens</span>
+                    <span class="stat-value">${composition.tools.tokens.toLocaleString()}</span>
+                    <span class="stat-label">Tool Tokens</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-value">${Math.round(budgetPercent)}%</span>
-                    <span class="stat-label">File Load</span>
+                    <span class="stat-value">${Math.round((composition.total.tokens / 128000) * 100)}%</span>
+                    <span class="stat-label">Of 128k Window</span>
                 </div>
             </div>
 
-            <div class="budget-container">
-                <div class="budget-bar">
-                    <div class="budget-segment seg-system" style="width: ${(map.systemTokens / map.totalTokens) * 100 || 0}%"></div>
-                    <div class="budget-segment seg-history" style="width: ${(map.historyTokens / map.totalTokens) * 100 || 0}%"></div>
-                    <div class="budget-segment seg-files" style="width: ${(map.fileTokens / map.totalTokens) * 100 || 0}%"></div>
-                    <div class="budget-segment seg-tools" style="width: ${(map.toolTokens / map.totalTokens) * 100 || 0}%"></div>
+            <div class="composition-container">
+                <h3 style="margin-top: 0; color: var(--text-dim); font-size: 0.9rem; text-transform: uppercase;">Context Composition</h3>
+                <div class="composition-bar">
+                    <div class="composition-segment seg-system" style="width: ${composition.system.percent}%" title="System: ${composition.system.percent}%"></div>
+                    <div class="composition-segment seg-tools" style="width: ${composition.tools.percent}%" title="Tools: ${composition.tools.percent}%"></div>
+                    <div class="composition-segment seg-history" style="width: ${composition.history.percent}%" title="History: ${composition.history.percent}%"></div>
+                    <div class="composition-segment seg-files" style="width: ${composition.files.percent}%" title="Files: ${composition.files.percent}%"></div>
+                    <div class="composition-segment seg-summaries" style="width: ${composition.summaries.percent}%" title="Summaries: ${composition.summaries.percent}%"></div>
                 </div>
-                <div class="budget-legend">
-                    <div class="legend-item"><span class="dot seg-system"></span> System</div>
-                    <div class="legend-item"><span class="dot seg-history"></span> History</div>
-                    <div class="legend-item"><span class="dot seg-files"></span> Files</div>
-                    <div class="legend-item"><span class="dot seg-tools"></span> Tools</div>
+                <div class="composition-legend">
+                    <div class="legend-item"><span class="dot seg-system"></span> System (${composition.system.percent}%)</div>
+                    <div class="legend-item"><span class="dot seg-tools"></span> Tools (${composition.tools.percent}%)</div>
+                    <div class="legend-item"><span class="dot seg-history"></span> History (${composition.history.percent}%)</div>
+                    <div class="legend-item"><span class="dot seg-files"></span> Files (${composition.files.percent}%)</div>
+                    <div class="legend-item"><span class="dot seg-summaries"></span> Summaries (${composition.summaries.percent}%)</div>
                 </div>
             </div>
         </header>
+
+        <section class="insights-section">
+            <h2>Actionable Insights</h2>
+            ${insightCards}
+        </section>
 
         <div class="file-grid">
             ${fileCards}
@@ -232,16 +282,11 @@ class ReportGenerator {
     }
     static getOpIcon(type) {
         switch (type) {
-            case "read":
-                return "👁️";
-            case "write":
-                return "📝";
-            case "edit":
-                return "✍️";
-            case "delete":
-                return "🗑️";
-            default:
-                return "📄";
+            case "read": return "READ";
+            case "write": return "WRITE";
+            case "edit": return "EDIT";
+            case "delete": return "DELETE";
+            default: return "FILE";
         }
     }
     static escapeHtml(text) {

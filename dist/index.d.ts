@@ -1,6 +1,6 @@
 /**
  * pi-context-map
- * Pi extension to visualize session context window and token distribution.
+ * Professional Context Profiler for Pi.
  */
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-export default function (pi: ExtensionAPI): void;
+export default function piContextMap(pi: ExtensionAPI): Promise<void>;
