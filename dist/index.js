@@ -2,44 +2,108 @@
 /**
  * pi-context-map
  * Professional Context Profiler for Pi.
+ * v0.4.0 - Adds live localhost server with auto-updates.
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = piContextMap;
 const analyzer_1 = require("./analyzer");
 const generator_1 = require("./generator");
 const insights_1 = require("./insights");
+const live_server_1 = require("./live-server");
+const path = __importStar(require("node:path"));
+const os = __importStar(require("node:os"));
+const REPORT_PATH = path.join(os.homedir(), ".pi", "context-map", "report.html");
 async function piContextMap(pi) {
     const analyzer = new analyzer_1.ContextAnalyzer();
+    const liveServer = new live_server_1.LiveReportServer();
     async function runAnalysis() {
         const messages = pi.session?.messages || [];
         const currentTurn = messages.length;
         const composition = analyzer.analyzeByType(messages, currentTurn);
         const insights = insights_1.InsightEngine.generate(composition);
         const html = generator_1.ReportGenerator.generateHTML(composition, insights);
-        const reportPath = generator_1.ReportGenerator.writeReport(html);
-        return { composition, insights, reportPath };
+        // Write to disk (for offline access / persistence)
+        try {
+            const fs = await import("node:fs");
+            const dir = path.dirname(REPORT_PATH);
+            if (!fs.existsSync(dir))
+                fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(REPORT_PATH, html, "utf8");
+        }
+        catch (err) {
+            console.error(`[pi-context-map] Failed to write report to disk: ${err.message}`);
+        }
+        // Push to live server (if running) so the browser updates instantly
+        if (liveServer.isRunning) {
+            liveServer.update(html, REPORT_PATH);
+        }
+        return { composition, insights, reportPath: REPORT_PATH };
     }
+    // Start the live server on load
+    const serverUrl = await liveServer.start();
     pi.registerCommand("context-map", {
-        description: "Generate a visual context map with actionable insights.",
-        handler: async (_args, ctx) => {
+        description: "Generate a visual context map with actionable insights. Use 'stop' to terminate the live server.",
+        handler: async (args, ctx) => {
+            // Handle subcommand: /context-map stop
+            if (typeof args === "string" && args.trim().toLowerCase() === "stop") {
+                liveServer.stop();
+                ctx.ui.notify("Live server stopped.", "info");
+                return;
+            }
             ctx.ui.notify("Analyzing session context...", "info");
             try {
-                const { reportPath, insights } = await runAnalysis();
+                const { insights, reportPath } = await runAnalysis();
                 const criticalCount = insights.filter((i) => i.severity === "critical").length;
                 const summary = criticalCount > 0
                     ? `Context map generated. ${criticalCount} critical insight(s) found.`
                     : `Context map generated successfully.`;
-                ctx.ui.notify(`${summary} Path: ${reportPath}`, criticalCount > 0 ? "warning" : "success");
+                let details = `File: ${reportPath}`;
+                if (serverUrl) {
+                    details += ` Live: ${serverUrl}`;
+                }
+                ctx.ui.notify(`${summary} ${details}`, criticalCount > 0 ? "warning" : "success");
             }
             catch (error) {
-                const message = error instanceof Error ? error.message : String(error);
-                ctx.ui.notify(`Failed to generate context map: ${message}`, "error");
+                ctx.ui.notify(`Failed to generate context map: ${error.message}`, "error");
             }
         },
     });
     pi.registerTool({
         name: "context-map",
-        description: "Analyze the current session context composition and return actionable insights.",
+        description: "Analyze the current session context composition and return actionable insights. The live localhost report will auto-update.",
         parameters: {
             type: "object",
             properties: {},
@@ -68,6 +132,8 @@ async function piContextMap(pi) {
                         message: i.message,
                         command: i.command,
                     })),
+                    liveUrl: serverUrl,
+                    reportPath: REPORT_PATH,
                 };
             }
             catch (error) {
@@ -76,9 +142,29 @@ async function piContextMap(pi) {
         },
     });
     pi.on("session_before_compact", (event, ctx) => {
-        const tokens = event.preparation?.tokensBefore;
+        const tokens = event?.preparation?.tokensBefore;
         if (tokens && tokens > 100_000) {
             ctx.ui.notify(`High context load detected (${(tokens / 1000).toFixed(1)}k tokens). Try /context-map to see what's consuming space.`, "info");
         }
     });
+    // Auto-refresh: re-run analysis after each assistant message so the live view stays current
+    pi.on("message_end", async (event) => {
+        if (event?.message?.role === "assistant" && liveServer.isRunning) {
+            try {
+                await runAnalysis();
+            }
+            catch {
+                // Silently ignore auto-refresh failures
+            }
+        }
+    });
+    // Graceful shutdown: stop the live server when the session ends
+    pi.on("session_shutdown", () => {
+        liveServer.stop();
+    });
+    // Log the live URL once on startup
+    if (serverUrl) {
+        console.log(`[pi-context-map] Live server running at ${serverUrl}`);
+        console.log(`[pi-context-map] Run /context-map to generate a report, or /context-map stop to terminate.`);
+    }
 }

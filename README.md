@@ -48,6 +48,27 @@ The extension categorizes files to help you manage context bloat:
 3. **Categorization**: It calculates the temporal distance between the current turn and the last file access.
 4. **Visualization**: It generates a standalone HTML dashboard featuring a stacked composition bar, a file-weight grid with search/filter, and an interactive insights section.
 
+## Live Localhost Server
+
+When the extension loads, it automatically starts a local HTTP server on `127.0.0.1` (a random free port). The server:
+
+- Serves the current report at `http://127.0.0.1:<port>/`.
+- Pushes live updates via Server-Sent Events at `/events?token=<sessionToken>`.
+- Authenticates the SSE connection with a per-session token (injected into the HTML as a `<meta>` tag).
+- Auto-refreshes after each assistant message, so the browser view stays in sync.
+
+**Commands:**
+
+- `/context-map` — Generate a fresh report and broadcast it to the browser.
+- `/context-map stop` — Stop the live server.
+
+**Endpoints:**
+
+- `GET /` or `/report.html` — The current report HTML.
+- `GET /events?token=...` — Server-Sent Events stream of updates.
+- `GET /health` — Returns `{ "status": "ok", "port": <number> }`.
+- `POST /stop` — Gracefully stops the server.
+
 ## Design
 
 The report uses the **Linear design system** (canvas `#010102`, accent `#5e6ad2`) with **shadcn/ui card patterns**. See `docs/design.md` for the full specification. The output is a single self-contained HTML file with no external dependencies.

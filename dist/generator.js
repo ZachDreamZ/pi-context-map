@@ -607,6 +607,37 @@ class ReportGenerator {
 
     <script>
         (function() {
+            // ===== Live update via Server-Sent Events =====
+            // Token is injected into the script via a meta tag (set by the server).
+            // Connect to /events?token=...; when the server pushes a new html payload, replace the document.
+            try {
+                var tokenMeta = document.querySelector('meta[name="context-map-token"]');
+                var token = tokenMeta ? tokenMeta.getAttribute('content') : '';
+                var evtSource = new EventSource('/events?token=' + encodeURIComponent(token));
+                evtSource.onmessage = function(e) {
+                    try {
+                        var payload = JSON.parse(e.data);
+                        if (payload.html) {
+                            // Replace the document body with the new HTML
+                            var parser = new DOMParser();
+                            var newDoc = parser.parseFromString(payload.html, 'text/html');
+                            document.documentElement.replaceChild(
+                                document.importNode(newDoc.documentElement, true),
+                                document.documentElement
+                            );
+                        }
+                    } catch (err) {
+                        console.warn('Failed to apply live update:', err);
+                    }
+                };
+                evtSource.onerror = function() {
+                    // Silently close on error; user can refresh the page to reconnect
+                    evtSource.close();
+                };
+            } catch (err) {
+                // EventSource not available; fall back to manual refresh
+            }
+
             // ===== Insight collapse/expand =====
             document.querySelectorAll('.insight-header[data-toggle]').forEach(function(btn) {
                 btn.addEventListener('click', function() {
@@ -622,7 +653,7 @@ class ReportGenerator {
             var grid = document.getElementById('fileGrid');
             var count = document.getElementById('fileCount');
             var empty = document.getElementById('emptyState');
-            var cards = Array.prototype.slice.call(grid.querySelectorAll('.file-card'));
+            var cards = grid ? Array.prototype.slice.call(grid.querySelectorAll('.file-card')) : [];
             var total = cards.length;
 
             function applyFilters() {

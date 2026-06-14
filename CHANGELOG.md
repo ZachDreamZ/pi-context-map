@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.4.0] - 2026-06-14
+### Live Localhost Server
+- **Live SSE Server**: New `LiveReportServer` binds to 127.0.0.1 on a free port and serves the report at `/`.
+- **Auto-Updates**: Server-Sent Events endpoint at `/events` pushes the latest HTML whenever the analysis re-runs (e.g., after each assistant message).
+- **Token Auth**: Each server instance generates a unique session token; the HTML client picks it up via a `<meta>` tag and includes it in the SSE URL to prevent unauthorized access.
+- **Origin Validation**: Only connections from `http://127.0.0.1:<port>` or `http://localhost:<port>` are allowed.
+- **Graceful Shutdown**: `/context-map stop` or `session_shutdown` event stops the server cleanly.
+- **Auto-Refresh**: The `message_end` event triggers an automatic re-analysis when the live server is running, so the browser view stays in sync.
+- **Health & Stop Endpoints**: `/health` for liveness, `POST /stop` for remote termination.
+
 ## [0.3.1] - 2026-06-14
 ### Design & Interactivity Upgrade
 - **Linear Design System**: Refactored CSS to use the Linear design tokens (canvas #010102, accent #5e6ad2) for a professional, near-black aesthetic.
