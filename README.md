@@ -46,7 +46,11 @@ The extension categorizes files to help you manage context bloat:
 1. **Scanning**: The analyzer iterates through the session history, identifying all `tool_use` calls involving file operations.
 2. **Weighting**: It extracts the content length of tool results and applies a token heuristic (approx. 4 chars/token).
 3. **Categorization**: It calculates the temporal distance between the current turn and the last file access.
-4. **Visualization**: It generates a standalone HTML dashboard featuring a token budget bar and a file-weight grid.
+4. **Visualization**: It generates a standalone HTML dashboard featuring a stacked composition bar, a file-weight grid with search/filter, and an interactive insights section.
+
+## Design
+
+The report uses the **Linear design system** (canvas `#010102`, accent `#5e6ad2`) with **shadcn/ui card patterns**. See `docs/design.md` for the full specification. The output is a single self-contained HTML file with no external dependencies.
 
 ## Compatibility
 

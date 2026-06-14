@@ -27,11 +27,17 @@ export default async function piContextMap(pi: ExtensionAPI) {
 			ctx.ui.notify("Analyzing session context...", "info");
 			try {
 				const { reportPath, insights } = await runAnalysis();
-				const criticalCount = insights.filter((i) => i.severity === "critical").length;
-				const summary = criticalCount > 0
-					? `Context map generated. ${criticalCount} critical insight(s) found.`
-					: `Context map generated successfully.`;
-				ctx.ui.notify(`${summary} Path: ${reportPath}`, criticalCount > 0 ? "warning" : "success");
+				const criticalCount = insights.filter(
+					(i) => i.severity === "critical",
+				).length;
+				const summary =
+					criticalCount > 0
+						? `Context map generated. ${criticalCount} critical insight(s) found.`
+						: `Context map generated successfully.`;
+				ctx.ui.notify(
+					`${summary} Path: ${reportPath}`,
+					criticalCount > 0 ? "warning" : "success",
+				);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				ctx.ui.notify(`Failed to generate context map: ${message}`, "error");
@@ -41,7 +47,8 @@ export default async function piContextMap(pi: ExtensionAPI) {
 
 	pi.registerTool({
 		name: "context-map",
-		description: "Analyze the current session context composition and return actionable insights.",
+		description:
+			"Analyze the current session context composition and return actionable insights.",
 		parameters: {
 			type: "object",
 			properties: {},
@@ -49,7 +56,8 @@ export default async function piContextMap(pi: ExtensionAPI) {
 		handler: async (_ctx: any, _args: any) => {
 			try {
 				const { composition, insights } = await runAnalysis();
-				const summary = `Context: ${composition.total.tokens.toLocaleString()} tokens total. ` +
+				const summary =
+					`Context: ${composition.total.tokens.toLocaleString()} tokens total. ` +
 					`System ${composition.system.percent}%, Tools ${composition.tools.percent}%, ` +
 					`History ${composition.history.percent}%, Files ${composition.files.percent}%, ` +
 					`Summaries ${composition.summaries.percent}%. ` +

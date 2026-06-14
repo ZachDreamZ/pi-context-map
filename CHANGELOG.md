@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] - 2026-06-14
+### Design & Interactivity Upgrade
+- **Linear Design System**: Refactored CSS to use the Linear design tokens (canvas #010102, accent #5e6ad2) for a professional, near-black aesthetic.
+- **shadcn/ui Card Patterns**: Insight cards now follow shadcn conventions (hairline borders, gradient backgrounds for severity).
+- **Collapsible Insights**: Critical and warning insights are expanded by default; info insights are collapsed. Click to toggle.
+- **File Search & Filter**: Added a real-time search input and status filter dropdown above the file grid. Shows match count and empty state.
+- **Design Doc**: Added `docs/design.md` documenting the visual language, layout, and accessibility decisions.
+
 ## [0.3.0] - 2026-06-14
 ### Professional Context Profiler
 - **Code-Aware Token Counting**: New `TokenCounter` module applies multipliers for code blocks (1.3x) and JSON (1.5x) for more accurate estimation.
