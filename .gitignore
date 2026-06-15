@@ -7,3 +7,4 @@ dist
 *.tgz
 src
 .npmrc
+demo-report.html
