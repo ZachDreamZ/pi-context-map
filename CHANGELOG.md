@@ -1,7 +1,13 @@
 # Changelog
 
-## [0.4.0] - 2026-06-14
-### Live Localhost Server
+## [0.4.1] - 2026-06-15
+### Critical Fix & Test Suite
+- **Fixed CRASH**: `(pi as any).session?.messages` → now uses event-based message accumulation. `/context-map` no longer crashes with "Cannot read properties of undefined (reading 'messages')".
+- **Fixed Tool Signature**: `registerTool` now uses correct `execute(params, signal, onUpdate, ctx)` signature.
+- **Fixed Import Path**: Uses `pi-coding-agent` (unscoped) instead of `@earendil-works/pi-coding-agent`.
+- **Test Suite**: 34 tests across 5 suites (analyzer, token-counter, insights, generator, live-server).
+- **Type Declarations**: Proper `pi-coding-agent.d.ts` with `ToolDefinition`, `ExtensionCommandContext`, `ExtensionContext`.
+- **Build Clean**: TypeScript strict mode passes with zero errors.
 - **Live SSE Server**: New `LiveReportServer` binds to 127.0.0.1 on a free port and serves the report at `/`.
 - **Auto-Updates**: Server-Sent Events endpoint at `/events` pushes the latest HTML whenever the analysis re-runs (e.g., after each assistant message).
 - **Token Auth**: Each server instance generates a unique session token; the HTML client picks it up via a `<meta>` tag and includes it in the SSE URL to prevent unauthorized access.

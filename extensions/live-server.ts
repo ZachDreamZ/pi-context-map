@@ -17,7 +17,12 @@ import * as os from "node:os";
 import * as crypto from "node:crypto";
 import type { AddressInfo } from "node:net";
 
-const DEFAULT_REPORT_PATH = path.join(os.homedir(), ".pi", "context-map", "report.html");
+const DEFAULT_REPORT_PATH = path.join(
+	os.homedir(),
+	".pi",
+	"context-map",
+	"report.html",
+);
 
 /**
  * Allowed origins for SSE connections. Only localhost variants are allowed.
@@ -52,7 +57,9 @@ export class LiveReportServer {
 
 		return new Promise((resolve) => {
 			try {
-				this.server = http.createServer((req, res) => this.handleRequest(req, res));
+				this.server = http.createServer((req, res) =>
+					this.handleRequest(req, res),
+				);
 				this.server.on("error", (err) => {
 					console.error(`[pi-context-map] Server error: ${err.message}`);
 					this.stop();
@@ -69,7 +76,9 @@ export class LiveReportServer {
 					}
 				});
 			} catch (err: any) {
-				console.error(`[pi-context-map] Failed to start server: ${err.message}`);
+				console.error(
+					`[pi-context-map] Failed to start server: ${err.message}`,
+				);
 				resolve(null);
 			}
 		});
@@ -118,14 +127,18 @@ export class LiveReportServer {
 				}
 				fs.writeFileSync(reportPath, html, "utf8");
 			} catch (err: any) {
-				console.error(`[pi-context-map] Failed to write report: ${err.message}`);
+				console.error(
+					`[pi-context-map] Failed to write report: ${err.message}`,
+				);
 			}
 		}
 
 		// Broadcast to all SSE clients
 		for (const client of this.clients) {
 			try {
-				client.write(`data: ${JSON.stringify({ html, timestamp: Date.now() })}\n\n`);
+				client.write(
+					`data: ${JSON.stringify({ html, timestamp: Date.now() })}\n\n`,
+				);
 			} catch (err) {
 				// Client may have disconnected; remove it
 				this.clients.delete(client);
@@ -151,7 +164,10 @@ export class LiveReportServer {
 	/**
 	 * Handle incoming HTTP requests.
 	 */
-	private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+	private handleRequest(
+		req: http.IncomingMessage,
+		res: http.ServerResponse,
+	): void {
 		if (!req.url) {
 			res.writeHead(400);
 			res.end("Bad request");
@@ -243,7 +259,9 @@ export class LiveReportServer {
 
 		// Send initial state if we have content
 		if (this.currentHtml) {
-			res.write(`data: ${JSON.stringify({ html: this.currentHtml, timestamp: Date.now() })}\n\n`);
+			res.write(
+				`data: ${JSON.stringify({ html: this.currentHtml, timestamp: Date.now() })}\n\n`,
+			);
 		} else {
 			res.write(`data: ${JSON.stringify({ waiting: true })}\n\n`);
 		}
