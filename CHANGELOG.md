@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.4] - 2026-06-15
+### Bug Fixes
+- **Fixed SSE rendering**: Changed `document.replaceChild(document.documentElement)` to `document.body.innerHTML` replacement. CSS and JavaScript no longer render as visible text on the page.
+- **Singleton server**: `start()` now kills any pre-existing server instance before starting a new one. Only one localhost server runs at a time — no duplicate ports.
+
 ## [0.4.3] - 2026-06-15
 ### Apple-Inspired HTML Redesign
 - **Complete visual overhaul**: Report now uses Apple design language — white canvas, Inter font (SF Pro substitute), Action Blue (#0066cc) accent, 18px card radius, pill-shaped inputs.

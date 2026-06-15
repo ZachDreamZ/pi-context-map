@@ -51,8 +51,9 @@ export class LiveReportServer {
 	 * Start the server. Returns a Promise that resolves to the URL, or null on failure.
 	 */
 	public start(): Promise<string | null> {
+		// Kill any pre-existing server to ensure only one instance runs
 		if (this.server) {
-			return Promise.resolve(this.url);
+			this.stop();
 		}
 
 		return new Promise((resolve) => {

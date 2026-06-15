@@ -16,8 +16,7 @@ export class ReportGenerator {
 		insights: Insight[],
 	): string {
 		const total = composition.total.tokens;
-		const usagePercent =
-			total > 0 ? Math.round((total / 128_000) * 100) : 0;
+		const usagePercent = total > 0 ? Math.round((total / 128_000) * 100) : 0;
 
 		const fileCards = composition.files_detail
 			.map(
@@ -497,7 +496,7 @@ h2:first-of-type { margin-top: 48px; }
 			<span class="stat-label">Files</span>
 		</div>
 		<div class="stat">
-			<span class="stat-value">${insights.filter(i => i.severity === "warning" || i.severity === "critical").length}</span>
+			<span class="stat-value">${insights.filter((i) => i.severity === "warning" || i.severity === "critical").length}</span>
 			<span class="stat-label">Alerts</span>
 		</div>
 		<div class="stat">
@@ -613,8 +612,16 @@ h2:first-of-type { margin-top: 48px; }
 			try {
 				var p = JSON.parse(e.data);
 				if (p.html) {
+					// Only replace the body content to preserve <style> and <script>
 					var d = new DOMParser().parseFromString(p.html, 'text/html');
-					document.replaceChild(document.importNode(d.documentElement, true), document.documentElement);
+					var newBody = d.querySelector('body');
+					var newTitle = d.querySelector('title');
+					if (newBody) {
+						document.body.innerHTML = newBody.innerHTML;
+					}
+					if (newTitle) {
+						document.title = newTitle.textContent || document.title;
+					}
 				}
 			} catch(_) {}
 		};
@@ -657,7 +664,11 @@ h2:first-of-type { margin-top: 48px; }
 	}
 
 	private static escapeHtml(text: string): string {
-		return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+		return text
+			.replace(/&/g, "&amp;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#039;");
 	}
 }
