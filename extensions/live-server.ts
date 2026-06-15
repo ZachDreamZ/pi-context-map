@@ -94,18 +94,19 @@ export class LiveReportServer {
 		for (const client of this.clients) {
 			try {
 				client.end();
-			} catch (err) {
-				// Ignore errors on close
+			} catch {
+				// Ignore
 			}
 		}
 		this.clients.clear();
 
-		// Close the server
-		this.server.close((err) => {
-			if (err) {
-				console.error(`[pi-context-map] Error closing server: ${err.message}`);
-			}
-		});
+		// Force-close all connections synchronously (Node 18.2+)
+		if (typeof this.server.closeAllConnections === "function") {
+			this.server.closeAllConnections();
+		}
+
+		// Close server and reset state synchronously
+		this.server.close();
 		this.server = null;
 		this.port = 0;
 	}

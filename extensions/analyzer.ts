@@ -81,8 +81,7 @@ export class ContextAnalyzer {
 				if (Array.isArray(msg.content)) {
 					for (const block of msg.content) {
 						if (block.type === "image" || block.type === "image_url") {
-							const p =
-								block.source?.url || block.image_url?.url || "[image]";
+							const p = block.source?.url || block.image_url?.url || "[image]";
 							const w = TokenCounter.count(JSON.stringify(block));
 							fileTokens += w;
 							if (!fileRegistry.has(p)) {
@@ -134,11 +133,7 @@ export class ContextAnalyzer {
 							const p = this.extractPath(block.name, input);
 							if (p) {
 								const opType = this.getOpType(block.name);
-								const result = this.findToolResult(
-									messages,
-									index,
-									block.id,
-								);
+								const result = this.findToolResult(messages, index, block.id);
 								const content = result?.content || "";
 								const w = TokenCounter.count(String(content));
 								fileTokens += w;
@@ -168,8 +163,7 @@ export class ContextAnalyzer {
 
 		const mk = (tokens: number): ContextSlice => ({
 			tokens: Math.ceil(tokens),
-			percent:
-				totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
+			percent: totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
 		});
 
 		const files_detail = Array.from(fileRegistry.values())

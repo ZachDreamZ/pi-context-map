@@ -25,9 +25,7 @@ function makeReportPath(sessionName?: string): string {
 	const now = new Date();
 	const date = now.toISOString().split("T")[0];
 	const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
-	const safe = (sessionName || "session")
-		.replace(/[^\w.-]/g, "_")
-		.slice(0, 40);
+	const safe = (sessionName || "session").replace(/[^\w.-]/g, "_").slice(0, 40);
 	const filename = `${date}_${time}_${safe}.html`;
 	return path.join(dir, filename);
 }
@@ -211,13 +209,10 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		liveServer.stop();
 	});
 
-	process.on("exit", () => liveServer.stop());
 	process.on("SIGINT", () => {
 		liveServer.stop();
-		process.exit(0);
 	});
 	process.on("SIGTERM", () => {
 		liveServer.stop();
-		process.exit(0);
 	});
 }

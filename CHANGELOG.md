@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.6.1] - 2026-06-15
+### Bug Fixes
+- **Fixed libuv assertion on Windows**: Removed `process.on('exit')` handler and `process.exit(0)` calls that left server handles open. Server now closes synchronously via `closeAllConnections()`.
+- **Synchronous stop()**: `isRunning` returns `false` immediately after `stop()` instead of after async callback.
+
 ## [0.6.0] - 2026-06-15
 ### Bug Fixes
 - **Fixed composition analysis**: Changed `role === "tool"` to `role === "toolResult"` to match Pi's actual message format. Tools and files now show correct percentages instead of 0%.
