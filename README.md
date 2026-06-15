@@ -8,11 +8,15 @@ A visual context window mapping extension for [Pi](https://pi.dev/) that transfo
 
 ## Features
 
-- **Visual Context Budget**: Real-time breakdown of tokens used by System, History, Files, and Tool Results.
-- **Working Set Analysis**: Categorizes files as `Active`, `Stale`, or `Legacy` based on access recency.
+- **Visual Context Budget**: Real-time breakdown of tokens used by System, Tools, History, Files, and Summaries.
+- **Accurate Token Count**: Uses Pi's actual token count from `ctx.getContextUsage()`, not heuristic estimation — matches the terminal display.
+- **Working Set Analysis**: Categorizes files as `Active`, `Stale`, or `Legacy` based on position in the conversation.
 - **Token Weighting**: Identifies "token hogs" by calculating the approximate size of each file in the window.
-- **Operation Tracking**: Marks files with their last operation (Read 👁️, Write 📝, Edit ✍️).
-- **Temporal Mapping**: Visually maps when files entered the context to identify compaction candidates.
+- **Operation Tracking**: Marks files with their last operation (Read, Write, Edit).
+- **Compaction Detection**: Tracks compaction summaries and branch summaries as a separate slice.
+- **Auto-Open Browser**: Report automatically opens in your default browser on first invocation.
+- **Dark Mode**: Toggle between light and dark themes. Preference persists across sessions via localStorage.
+- **Live Server**: SSE-powered localhost server with auto-refresh after each assistant message.
 
 ## Installation
 
@@ -33,20 +37,21 @@ The extension will analyze the session and create an interactive HTML report at:
 
 ## Context Statuses
 
-The extension categorizes files to help you manage context bloat:
+Files are categorized by their position in the conversation (more reliable than turn-based calculation):
 
-| Status | Criteria | Action |
-|--------|----------|--------|
-| **Active** | Accessed in last 3 turns | Keep in context |
-| **Stale** | Accessed 4-10 turns ago | Monitor for removal |
-| **Legacy** | Accessed > 10 turns ago | Prime candidate for compaction |
+| Status | Position in Messages | Action |
+|--------|---------------------|--------|
+| **Active** | Last 30% of messages | Keep in context |
+| **Stale** | Middle 40% of messages | Monitor for removal |
+| **Legacy** | First 30% of messages | Prime candidate for compaction |
 
 ## How It Works
 
-1. **Scanning**: The analyzer iterates through the session history, identifying all `tool_use` calls involving file operations.
-2. **Weighting**: It extracts the content length of tool results and applies a token heuristic (approx. 4 chars/token).
-3. **Categorization**: It calculates the temporal distance between the current turn and the last file access.
-4. **Visualization**: It generates a standalone HTML dashboard featuring a stacked composition bar, a file-weight grid with search/filter, and an interactive insights section.
+1. **Scanning**: The analyzer iterates through session messages, detecting `toolCall` blocks, `toolResult` messages, `compactionSummary` entries, and image attachments.
+2. **Weighting**: It calculates token counts for each message type using a code-aware heuristic (multipliers for code blocks, strings, etc.).
+3. **Accuracy**: When available, Pi's actual token count from `ctx.getContextUsage()` overrides the heuristic for the usage percentage.
+4. **Categorization**: Files are classified by their position in the message array (last 30% = active, middle 40% = stale, first 30% = legacy).
+5. **Visualization**: Generates a self-contained HTML dashboard with stacked composition bar, file cards with search/filter, dark mode toggle, and interactive insights.
 
 ## Live Localhost Server
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.0] - 2026-06-15
+### Bug Fixes
+- **Fixed token accuracy**: Now uses Pi's actual token count from `ctx.getContextUsage()` instead of heuristic estimation. The usage percentage now matches Pi's terminal display.
+- **Fixed compaction summary detection**: Now detects `role: "compactionSummary"` (Pi's actual format) with the `summary` field. Summaries no longer show 0%.
+- **Fixed file status calculation**: Changed from turn-based to position-based. Files in the last 30% of messages are "active", middle 40% are "stale", first 30% are "legacy".
+- **Removed error spam**: Silent error handling instead of console.error for non-critical failures.
+
+### Features
+- **Auto-open browser**: Report automatically opens in default browser on first `/context-map` invocation.
+- **Pi actual tokens in HTML**: Generator accepts and displays Pi's real token count.
+
 ## [0.6.2] - 2026-06-15
 ### Bug Fixes
 - **Fixed Pi message format**: Now uses `type: "toolCall"` (not `"tool_use"`) and `toolCallId` (not `tool_call_id`) to match Pi's actual `@mariozechner/pi-ai` types.

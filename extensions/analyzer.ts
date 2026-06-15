@@ -3,13 +3,16 @@
  * Parses Pi session messages to identify the active working set of files,
  * their token weights, and their temporal status.
  *
- * Pi message format (from @mariozechner/pi-ai):
- *   UserMessage:       { role: "user", content: string | (TextContent | ImageContent)[] }
- *   AssistantMessage:  { role: "assistant", content: (TextContent | ThinkingContent | ToolCall)[] }
- *   ToolResultMessage: { role: "toolResult", toolCallId, toolName, content: (TextContent | ImageContent)[] }
+ * Pi message format (from @mariozechner/pi-ai + pi-coding-agent):
+ *   UserMessage:             { role: "user", content: string | (TextContent | ImageContent)[] }
+ *   AssistantMessage:        { role: "assistant", content: (TextContent | ThinkingContent | ToolCall)[] }
+ *   ToolResultMessage:       { role: "toolResult", toolCallId, toolName, content }
+ *   CompactionSummaryMessage:{ role: "compactionSummary", summary: string, tokensBefore: number }
+ *   BranchSummaryMessage:    { role: "branchSummary", summary: string }
+ *   BashExecutionMessage:    { role: "bashExecution", command, output }
+ *   CustomMessage:           { role: "custom", customType, content }
  *
  * ToolCall:           { type: "toolCall", id, name, arguments }
- * ToolCall.id maps to ToolResultMessage.toolCallId
  */
 import { TokenCounter } from "./token-counter";
 
@@ -39,6 +42,9 @@ export interface ContextComposition {
 	summaries: ContextSlice;
 	total: ContextSlice;
 	files_detail: FileContext[];
+	/** Pi's actual token count from ctx.getContextUsage() — may differ from heuristic total */
+	actualTokens?: number | null;
+	actualPercent?: number | null;
 }
 
 export class ContextAnalyzer {
@@ -60,23 +66,65 @@ export class ContextAnalyzer {
 			systemTokens += TokenCounter.count(systemPrompt);
 		}
 
+		// Track message indices for status calculation
+		const totalMessages = messages.length;
+
 		for (let index = 0; index < messages.length; index++) {
 			const msg = messages[index];
 			const turn = index + 1;
+
+			// Normalize role — Pi may use different role strings
 			const role = msg.role || "";
 
-			// 1. Compaction summaries (Pi compaction entries)
+			// 1. Compaction summaries (Pi uses role="compactionSummary" with summary field)
 			if (
+				role === "compactionSummary" ||
 				role === "compaction" ||
 				msg.type === "compaction" ||
 				msg.customType === "compaction" ||
 				msg.compactionEntry
 			) {
-				summaryTokens += TokenCounter.countMessage(msg);
+				// Use the summary field if available, otherwise fall back to content
+				const summaryText =
+					typeof msg.summary === "string"
+						? msg.summary
+						: typeof msg.content === "string"
+							? msg.content
+							: JSON.stringify(msg.content || msg);
+				summaryTokens += TokenCounter.count(summaryText);
 				continue;
 			}
 
-			// 2. Tool results (Pi uses role="toolResult")
+			// 2. Branch summaries
+			if (role === "branchSummary") {
+				const summaryText =
+					typeof msg.summary === "string" ? msg.summary : JSON.stringify(msg);
+				summaryTokens += TokenCounter.count(summaryText);
+				continue;
+			}
+
+			// 3. Bash executions
+			if (role === "bashExecution") {
+				toolTokens += TokenCounter.countMessage(msg);
+				continue;
+			}
+
+			// 4. Custom messages (extensions)
+			if (role === "custom") {
+				// Categorize based on customType
+				const customType = msg.customType || "";
+				if (
+					customType.includes("compaction") ||
+					customType.includes("summary")
+				) {
+					summaryTokens += TokenCounter.countMessage(msg);
+				} else {
+					historyTokens += TokenCounter.countMessage(msg);
+				}
+				continue;
+			}
+
+			// 5. Tool results (Pi uses role="toolResult")
 			if (role === "toolResult") {
 				toolTokens += TokenCounter.countMessage(msg);
 				// Track file content from tool results
@@ -100,7 +148,7 @@ export class ContextAnalyzer {
 									turn,
 									timestamp: msg.timestamp || Date.now(),
 								},
-								status: this.calculateStatus(turn, currentTurn),
+								status: this.calculateStatus(index, totalMessages),
 							});
 						}
 					}
@@ -108,7 +156,7 @@ export class ContextAnalyzer {
 				continue;
 			}
 
-			// 3. User messages
+			// 6. User messages
 			if (role === "user") {
 				historyTokens += TokenCounter.countMessage(msg);
 				// Track file attachments (images, file paths in text)
@@ -127,7 +175,7 @@ export class ContextAnalyzer {
 										turn,
 										timestamp: msg.timestamp || Date.now(),
 									},
-									status: this.calculateStatus(turn, currentTurn),
+									status: this.calculateStatus(index, totalMessages),
 								});
 							}
 						}
@@ -146,7 +194,7 @@ export class ContextAnalyzer {
 												turn,
 												timestamp: msg.timestamp || Date.now(),
 											},
-											status: this.calculateStatus(turn, currentTurn),
+											status: this.calculateStatus(index, totalMessages),
 										});
 									}
 								}
@@ -157,7 +205,7 @@ export class ContextAnalyzer {
 				continue;
 			}
 
-			// 4. Assistant messages — track toolCall blocks
+			// 7. Assistant messages — track toolCall blocks
 			if (role === "assistant") {
 				historyTokens += TokenCounter.countMessage(msg);
 				if (Array.isArray(msg.content)) {
@@ -179,7 +227,7 @@ export class ContextAnalyzer {
 										turn,
 										timestamp: msg.timestamp || Date.now(),
 									},
-									status: this.calculateStatus(turn, currentTurn),
+									status: this.calculateStatus(index, totalMessages),
 								});
 							}
 						}
@@ -188,7 +236,7 @@ export class ContextAnalyzer {
 				continue;
 			}
 
-			// 5. Everything else
+			// 8. Everything else
 			historyTokens += TokenCounter.countMessage(msg);
 		}
 
@@ -260,13 +308,20 @@ export class ContextAnalyzer {
 		}
 	}
 
+	/**
+	 * Calculate file status based on position in message array.
+	 * Files near the end are "active", middle are "stale", beginning are "legacy".
+	 * This is more reliable than turn-based calculation since the context event
+	 * replaces all messages at once.
+	 */
 	private calculateStatus(
-		turn: number,
-		currentTurn: number,
+		messageIndex: number,
+		totalMessages: number,
 	): FileContext["status"] {
-		const diff = currentTurn - turn;
-		if (diff <= 3) return "active";
-		if (diff <= 10) return "stale";
+		if (totalMessages === 0) return "legacy";
+		const ratio = messageIndex / totalMessages;
+		if (ratio >= 0.7) return "active";
+		if (ratio >= 0.3) return "stale";
 		return "legacy";
 	}
 

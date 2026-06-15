@@ -1,67 +1,4 @@
-/**
- * ReportGenerator
- * Generates a visual HTML dashboard based on the ContextComposition.
- * Apple-inspired design: clean whitespace, SF Pro typography, single blue accent.
- */
-
-import type { ContextComposition } from "./analyzer";
-import type { Insight } from "./insights";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
-
-export class ReportGenerator {
-	public static generateHTML(
-		composition: ContextComposition,
-		insights: Insight[],
-		contextWindow: number = 128_000,
-		actualTokens?: number | null,
-	): string {
-		// Use Pi's actual token count when available
-		const total =
-			actualTokens != null && actualTokens > 0
-				? actualTokens
-				: composition.total.tokens;
-		const usagePercent =
-			total > 0 ? Math.round((total / contextWindow) * 100) : 0;
-
-		const fileCards = composition.files_detail
-			.map(
-				(file) => `
-			<div class="file-card" data-path="${ReportGenerator.escapeHtml(file.path)}" data-status="${file.status}">
-				<div class="file-card-top">
-					<span class="file-path">${ReportGenerator.escapeHtml(file.path)}</span>
-					<span class="file-weight">${file.weight.toLocaleString()}</span>
-				</div>
-				<div class="file-card-bottom">
-					<span class="op-tag">${ReportGenerator.getOpIcon(file.lastOp.type)} &middot; Turn ${file.lastOp.turn}</span>
-					<span class="status-chip ${file.status}">${file.status}</span>
-				</div>
-				<div class="file-bar">
-					<div class="file-bar-fill" style="width: ${Math.min(100, (file.weight / Math.max(1, total)) * 100 * 3)}%"></div>
-				</div>
-			</div>`,
-			)
-			.join("");
-
-		const insightCards = insights
-			.map(
-				(insight, i) => `
-			<div class="insight-card ${insight.severity}${insight.severity === "info" ? " collapsed" : ""}">
-				<button class="insight-header" data-target="i${i}" aria-expanded="${insight.severity !== "info"}">
-					<svg class="insight-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 3l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-					<span class="insight-severity">${insight.severity}</span>
-					<span class="insight-title">${ReportGenerator.escapeHtml(insight.title)}</span>
-				</button>
-				<div class="insight-body">
-					<p>${ReportGenerator.escapeHtml(insight.message)}</p>
-					${insight.command ? `<div class="insight-action"><code>${insight.command}</code></div>` : ""}
-				</div>
-			</div>`,
-			)
-			.join("");
-
-		return `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -520,64 +457,97 @@ h2:first-of-type { margin-top: 48px; }
 
 	<div class="stats">
 		<div class="stat">
-			<span class="stat-value">${total.toLocaleString()}</span>
+			<span class="stat-value">165,000</span>
 			<span class="stat-label">Total Tokens</span>
 		</div>
 		<div class="stat">
-			<span class="stat-value">${composition.files_detail.length}</span>
+			<span class="stat-value">7</span>
 			<span class="stat-label">Files</span>
 		</div>
 		<div class="stat">
-			<span class="stat-value">${insights.filter((i) => i.severity === "warning" || i.severity === "critical").length}</span>
+			<span class="stat-value">0</span>
 			<span class="stat-label">Alerts</span>
 		</div>
 		<div class="stat">
-			<span class="stat-value">${(contextWindow / 1000).toFixed(0)}k</span>
+			<span class="stat-value">200k</span>
 			<span class="stat-label">Context Window</span>
 		</div>
 	</div>
 
 	<div class="usage-container">
-		<div class="usage-ring${usagePercent > 80 ? " critical" : usagePercent > 60 ? " warning" : ""}">
+		<div class="usage-ring critical">
 			<svg width="80" height="80" viewBox="0 0 80 80">
 				<circle class="bg" cx="40" cy="40" r="34"/>
 				<circle class="fg" cx="40" cy="40" r="34"
-					stroke-dasharray="${2 * Math.PI * 34}"
-					stroke-dashoffset="${2 * Math.PI * 34 * (1 - usagePercent / 100)}"/>
+					stroke-dasharray="213.62830044410595"
+					stroke-dashoffset="36.316811075498016"/>
 			</svg>
 		</div>
 		<div class="usage-label">
-			${usagePercent}% of ${(contextWindow / 1000).toFixed(0)}k window
-			<small>${usagePercent > 80 ? "Compaction recommended" : usagePercent > 60 ? "Monitor usage" : "Healthy"}</small>
+			83% of 200k window
+			<small>Compaction recommended</small>
 		</div>
 	</div>
 
 	<div class="composition-card">
 		<h3>Context Composition</h3>
 		<div class="bar">
-			${ReportGenerator.seg("seg-system", composition.system.percent)}
-			${ReportGenerator.seg("seg-tools", composition.tools.percent)}
-			${ReportGenerator.seg("seg-history", composition.history.percent)}
-			${ReportGenerator.seg("seg-files", composition.files.percent)}
-			${ReportGenerator.seg("seg-summaries", composition.summaries.percent)}
+			<div class="bar-seg seg-system" style="width:5%"></div>
+			<div class="bar-seg seg-tools" style="width:15%"></div>
+			<div class="bar-seg seg-history" style="width:42%"></div>
+			<div class="bar-seg seg-files" style="width:32%"></div>
+			<div class="bar-seg seg-summaries" style="width:6%"></div>
 		</div>
 		<div class="legend">
-			<div class="legend-item"><span class="legend-dot sys"></span> System &mdash; ${composition.system.tokens.toLocaleString()} (${composition.system.percent}%)</div>
-			<div class="legend-item"><span class="legend-dot tools"></span> Tools &mdash; ${composition.tools.tokens.toLocaleString()} (${composition.tools.percent}%)</div>
-			<div class="legend-item"><span class="legend-dot hist"></span> History &mdash; ${composition.history.tokens.toLocaleString()} (${composition.history.percent}%)</div>
-			<div class="legend-item"><span class="legend-dot files"></span> Files &mdash; ${composition.files.tokens.toLocaleString()} (${composition.files.percent}%)</div>
-			<div class="legend-item"><span class="legend-dot summ"></span> Summaries &mdash; ${composition.summaries.tokens.toLocaleString()} (${composition.summaries.percent}%)</div>
+			<div class="legend-item"><span class="legend-dot sys"></span> System &mdash; 41 (5%)</div>
+			<div class="legend-item"><span class="legend-dot tools"></span> Tools &mdash; 119 (15%)</div>
+			<div class="legend-item"><span class="legend-dot hist"></span> History &mdash; 344 (42%)</div>
+			<div class="legend-item"><span class="legend-dot files"></span> Files &mdash; 258 (32%)</div>
+			<div class="legend-item"><span class="legend-dot summ"></span> Summaries &mdash; 49 (6%)</div>
 		</div>
 	</div>
 </header>
 
 <section>
 	<h2>Insights</h2>
-	${insightCards || `<p style="color:var(--ink-tertiary);font-size:15px;">No insights available yet &mdash; the context composition is balanced.</p>`}
+	
+			<div class="insight-card info collapsed">
+				<button class="insight-header" data-target="i0" aria-expanded="false">
+					<svg class="insight-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 3l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					<span class="insight-severity">info</span>
+					<span class="insight-title">3 stale file(s) in context</span>
+				</button>
+				<div class="insight-body">
+					<p>Files accessed more than 10 turns ago are still in context (~48 tokens). They are unlikely to be needed.</p>
+					
+				</div>
+			</div>
+			<div class="insight-card info collapsed">
+				<button class="insight-header" data-target="i1" aria-expanded="false">
+					<svg class="insight-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 3l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					<span class="insight-severity">info</span>
+					<span class="insight-title">Many files loaded</span>
+				</button>
+				<div class="insight-body">
+					<p>Files account for 32% of context (258 tokens). Consider using smart-read to load only the relevant symbols.</p>
+					<div class="insight-action"><code>/smart-read</code></div>
+				</div>
+			</div>
+			<div class="insight-card info collapsed">
+				<button class="insight-header" data-target="i2" aria-expanded="false">
+					<svg class="insight-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 3l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					<span class="insight-severity">info</span>
+					<span class="insight-title">Compaction summaries detected</span>
+				</button>
+				<div class="insight-body">
+					<p>49 tokens are from prior compaction summaries. Original detail has been compressed.</p>
+					
+				</div>
+			</div>
 </section>
 
 <section>
-	<h2>Files <span style="font-size:14px;font-weight:400;color:var(--ink-tertiary);letter-spacing:0;">(${composition.files_detail.length})</span></h2>
+	<h2>Files <span style="font-size:14px;font-weight:400;color:var(--ink-tertiary);letter-spacing:0;">(7)</span></h2>
 	<div class="file-controls">
 		<input type="text" class="file-search" id="fileSearch" placeholder="Search files" aria-label="Search files">
 		<select class="file-filter" id="fileFilter" aria-label="Filter by status">
@@ -589,7 +559,98 @@ h2:first-of-type { margin-top: 48px; }
 		<span class="file-count" id="fileCount"></span>
 	</div>
 	<div class="file-grid" id="fileGrid">
-		${fileCards || '<div class="empty-state">No files tracked in the current session context.</div>'}
+		
+			<div class="file-card" data-path="C:/src/tests/auth.test.ts" data-status="stale">
+				<div class="file-card-top">
+					<span class="file-path">C:/src/tests/auth.test.ts</span>
+					<span class="file-weight">68</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Read &middot; Turn 9</span>
+					<span class="status-chip stale">stale</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.12363636363636364%"></div>
+				</div>
+			</div>
+			<div class="file-card" data-path="C:/src/database.ts" data-status="legacy">
+				<div class="file-card-top">
+					<span class="file-path">C:/src/database.ts</span>
+					<span class="file-weight">41</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Read &middot; Turn 5</span>
+					<span class="status-chip legacy">legacy</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.07454545454545455%"></div>
+				</div>
+			</div>
+			<div class="file-card" data-path="C:/deploy/docker-compose.yml" data-status="active">
+				<div class="file-card-top">
+					<span class="file-path">C:/deploy/docker-compose.yml</span>
+					<span class="file-weight">40</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Read &middot; Turn 12</span>
+					<span class="status-chip active">active</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.07272727272727272%"></div>
+				</div>
+			</div>
+			<div class="file-card" data-path="[image]" data-status="active">
+				<div class="file-card-top">
+					<span class="file-path">[image]</span>
+					<span class="file-weight">24</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Read &middot; Turn 11</span>
+					<span class="status-chip active">active</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.04363636363636364%"></div>
+				</div>
+			</div>
+			<div class="file-card" data-path="C:/src/auth.ts" data-status="stale">
+				<div class="file-card-top">
+					<span class="file-path">C:/src/auth.ts</span>
+					<span class="file-weight">20</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Edit &middot; Turn 7</span>
+					<span class="status-chip stale">stale</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.03636363636363636%"></div>
+				</div>
+			</div>
+			<div class="file-card" data-path="/src/database.ts" data-status="legacy">
+				<div class="file-card-top">
+					<span class="file-path">/src/database.ts</span>
+					<span class="file-weight">4</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Read &middot; Turn 2</span>
+					<span class="status-chip legacy">legacy</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.007272727272727273%"></div>
+				</div>
+			</div>
+			<div class="file-card" data-path="/src/auth.ts" data-status="legacy">
+				<div class="file-card-top">
+					<span class="file-path">/src/auth.ts</span>
+					<span class="file-weight">3</span>
+				</div>
+				<div class="file-card-bottom">
+					<span class="op-tag">Read &middot; Turn 2</span>
+					<span class="status-chip legacy">legacy</span>
+				</div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: 0.005454545454545455%"></div>
+				</div>
+			</div>
 	</div>
 	<div class="empty-state" id="emptyState" style="display:none">No files match your current filters.</div>
 </section>
@@ -698,44 +759,4 @@ h2:first-of-type { margin-top: 48px; }
 </script>
 
 </body>
-</html>`;
-	}
-
-	public static writeReport(html: string): string {
-		const reportDir = join(homedir(), ".pi", "context-map");
-		mkdirSync(reportDir, { recursive: true });
-		const reportPath = join(reportDir, "report.html");
-		writeFileSync(reportPath, html, "utf8");
-		return reportPath;
-	}
-
-	private static seg(cls: string, pct: number): string {
-		return pct > 0
-			? `<div class="bar-seg ${cls}" style="width:${pct}%"></div>`
-			: "";
-	}
-
-	private static getOpIcon(type: string): string {
-		switch (type) {
-			case "read":
-				return "Read";
-			case "write":
-				return "Write";
-			case "edit":
-				return "Edit";
-			case "delete":
-				return "Delete";
-			default:
-				return "Access";
-		}
-	}
-
-	private static escapeHtml(text: string): string {
-		return text
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;")
-			.replace(/'/g, "&#039;");
-	}
-}
+</html>

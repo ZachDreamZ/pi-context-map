@@ -1,7 +1,8 @@
 /**
  * pi-context-map
  * Professional Context Profiler for Pi.
- * v0.6.2 — Fixed Pi message format (toolCall), system prompt detection, message persistence.
+ * v0.7.0 — Fixed token accuracy (uses Pi's actual count), compactionSummary detection,
+ *          auto-open browser, position-based file status, error cleanup.
  */
 
 import type {
@@ -16,6 +17,7 @@ import { LiveReportServer } from "./live-server";
 import * as path from "node:path";
 import * as fs from "node:fs";
 import * as os from "node:os";
+import { exec } from "node:child_process";
 
 function makeReportPath(sessionName?: string): string {
 	const dir = path.join(os.homedir(), ".pi", "context-map");
@@ -30,6 +32,17 @@ function makeReportPath(sessionName?: string): string {
 	return path.join(dir, filename);
 }
 
+function openBrowser(url: string): void {
+	const platform = process.platform;
+	if (platform === "win32") {
+		exec(`start "" "${url}"`);
+	} else if (platform === "darwin") {
+		exec(`open "${url}"`);
+	} else {
+		exec(`xdg-open "${url}"`);
+	}
+}
+
 export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	const analyzer = new ContextAnalyzer();
 	const liveServer = new LiveReportServer();
@@ -37,18 +50,30 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	let sessionMessages: AgentMessage[] = [];
 	let currentTurn = 0;
 	let contextWindow = 128_000;
+	let actualTokens: number | null = null;
+	let actualPercent: number | null = null;
 	let systemPrompt = "";
 	let currentReportPath = makeReportPath();
+	let isFirstRun = true;
 
-	// Capture messages, context window, and system prompt from Pi system
+	// Capture messages, context window, system prompt, and actual token count from Pi
 	pi.on("context", (event: any, ctx: any) => {
 		if (event?.messages && Array.isArray(event.messages)) {
 			sessionMessages = event.messages;
 		}
 		try {
 			const usage = ctx?.getContextUsage?.();
-			if (usage?.contextWindow && usage.contextWindow > 0) {
-				contextWindow = usage.contextWindow;
+			if (usage) {
+				if (usage.contextWindow && usage.contextWindow > 0) {
+					contextWindow = usage.contextWindow;
+				}
+				// Use Pi's actual token count — this is the real value
+				if (usage.tokens != null && usage.tokens > 0) {
+					actualTokens = usage.tokens;
+				}
+				if (usage.percent != null && usage.percent > 0) {
+					actualPercent = usage.percent;
+				}
 			}
 		} catch {
 			// Keep fallback
@@ -71,6 +96,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	// Update report path when session changes
 	pi.on("session_start", () => {
 		currentReportPath = makeReportPath();
+		isFirstRun = true;
 	});
 
 	// Persist messages on compaction so they survive reload
@@ -78,7 +104,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		if (event?.compactionEntry) {
 			try {
 				pi.appendEntry("context-map-snapshot", {
-					messages: sessionMessages.slice(-50), // Keep last 50 messages
+					messages: sessionMessages.slice(-50),
 					turn: currentTurn,
 					timestamp: Date.now(),
 				});
@@ -99,11 +125,40 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			currentTurn,
 			systemPrompt,
 		);
+
+		// Override with Pi's actual token count when available
+		if (actualTokens != null && actualTokens > 0) {
+			composition.actualTokens = actualTokens;
+			composition.actualPercent = actualPercent;
+			// Recalculate percentages relative to actual total
+			const total = actualTokens;
+			if (total > 0) {
+				composition.system.percent = Math.round(
+					(composition.system.tokens / total) * 100,
+				);
+				composition.tools.percent = Math.round(
+					(composition.tools.tokens / total) * 100,
+				);
+				composition.history.percent = Math.round(
+					(composition.history.tokens / total) * 100,
+				);
+				composition.files.percent = Math.round(
+					(composition.files.tokens / total) * 100,
+				);
+				composition.summaries.percent = Math.round(
+					(composition.summaries.tokens / total) * 100,
+				);
+				// Use Pi's actual total for the usage calculation
+				composition.total.tokens = total;
+			}
+		}
+
 		const insights = InsightEngine.generate(composition);
 		const html = ReportGenerator.generateHTML(
 			composition,
 			insights,
 			contextWindow,
+			actualTokens,
 		);
 
 		try {
@@ -113,7 +168,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			}
 			fs.writeFileSync(currentReportPath, html, "utf8");
 		} catch (err: any) {
-			console.error(`[pi-context-map] Failed to write report: ${err.message}`);
+			// Silent — don't spam console
 		}
 
 		if (liveServer.isRunning) {
@@ -145,17 +200,27 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 					criticalCount > 0
 						? `Context map generated. ${criticalCount} critical insight(s) found.`
 						: "Context map generated successfully.";
-				let details = `File: ${reportPath}`;
+
+				// Use Pi's actual percentage when available
+				const usageDisplay =
+					actualPercent != null
+						? `${actualPercent.toFixed(1)}%`
+						: `${composition.total.percent}%`;
+
+				let details = `Usage: ${usageDisplay} of ${(contextWindow / 1000).toFixed(0)}k`;
 				if (serverUrl) {
-					details += ` | Live: ${serverUrl}`;
+					details += ` | ${serverUrl}`;
 				}
-				details += ` | Messages: ${sessionMessages.length}`;
-				details += ` | System: ${composition.system.tokens}t (${composition.system.percent}%)`;
-				details += ` | Tools: ${composition.tools.tokens}t (${composition.tools.percent}%)`;
 				ctx.ui.notify(
 					`${summary} ${details}`,
 					criticalCount > 0 ? "warning" : "success",
 				);
+
+				// Auto-open browser on first run
+				if (isFirstRun && serverUrl) {
+					openBrowser(serverUrl);
+					isFirstRun = false;
+				}
 			} catch (error: any) {
 				ctx.ui.notify(
 					`Failed to generate context map: ${error.message}`,
@@ -183,15 +248,16 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			try {
 				const { composition, insights, reportPath } = await runAnalysis();
 				const usagePercent =
-					composition.total.tokens > 0
-						? Math.round((composition.total.tokens / contextWindow) * 100)
-						: 0;
+					actualPercent != null
+						? actualPercent
+						: composition.total.tokens > 0
+							? Math.round((composition.total.tokens / contextWindow) * 100)
+							: 0;
 				const summary =
-					`Context: ${composition.total.tokens.toLocaleString()} tokens total. ` +
+					`Context: ${composition.total.tokens.toLocaleString()} tokens (${usagePercent.toFixed(1)}% of ${(contextWindow / 1000).toFixed(0)}k). ` +
 					`System ${composition.system.percent}%, Tools ${composition.tools.percent}%, ` +
 					`History ${composition.history.percent}%, Files ${composition.files.percent}%, ` +
 					`Summaries ${composition.summaries.percent}%. ` +
-					`Usage: ${usagePercent}% of ${(contextWindow / 1000).toFixed(0)}k window. ` +
 					`Messages: ${sessionMessages.length}. ` +
 					`${insights.length} insight(s).`;
 				return {

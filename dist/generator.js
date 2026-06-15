@@ -10,8 +10,11 @@ const node_fs_1 = require("node:fs");
 const node_path_1 = require("node:path");
 const node_os_1 = require("node:os");
 class ReportGenerator {
-    static generateHTML(composition, insights, contextWindow = 128_000) {
-        const total = composition.total.tokens;
+    static generateHTML(composition, insights, contextWindow = 128_000, actualTokens) {
+        // Use Pi's actual token count when available
+        const total = actualTokens != null && actualTokens > 0
+            ? actualTokens
+            : composition.total.tokens;
         const usagePercent = total > 0 ? Math.round((total / contextWindow) * 100) : 0;
         const fileCards = composition.files_detail
             .map((file) => `

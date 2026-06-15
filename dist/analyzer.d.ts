@@ -21,6 +21,9 @@ export interface ContextComposition {
     summaries: ContextSlice;
     total: ContextSlice;
     files_detail: FileContext[];
+    /** Pi's actual token count from ctx.getContextUsage() — may differ from heuristic total */
+    actualTokens?: number | null;
+    actualPercent?: number | null;
 }
 export declare class ContextAnalyzer {
     analyzeByType(messages: any[], currentTurn: number, systemPrompt?: string): ContextComposition;
@@ -29,6 +32,12 @@ export declare class ContextAnalyzer {
     private extractPath;
     private extractPathFromToolResult;
     private getOpType;
+    /**
+     * Calculate file status based on position in message array.
+     * Files near the end are "active", middle are "stale", beginning are "legacy".
+     * This is more reliable than turn-based calculation since the context event
+     * replaces all messages at once.
+     */
     private calculateStatus;
     private findToolResult;
 }
