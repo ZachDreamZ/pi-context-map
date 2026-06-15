@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.4] - 2026-06-16
+### Performance & Reliability
+- **Throttled auto-refresh**: `message_end` handler now throttles analysis to max once per 5 seconds. Prevents expensive I/O spam during rapid assistant responses.
+
 ## [0.7.3] - 2026-06-15
 ### Bug Fixes
 - **Fixed insights context window**: Removed hardcoded "128k" from all insight messages. Now shows actual window size (e.g., "your 200k context window").

@@ -304,8 +304,14 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		}
 	});
 
+	let lastAnalysisTime = 0;
+	const ANALYSIS_THROTTLE_MS = 5000; // Don't run analysis more than once per 5 seconds
+
 	pi.on("message_end", async (_event: any) => {
 		if (_event?.message?.role === "assistant" && liveServer.isRunning) {
+			const now = Date.now();
+			if (now - lastAnalysisTime < ANALYSIS_THROTTLE_MS) return;
+			lastAnalysisTime = now;
 			try {
 				await runAnalysis();
 			} catch {
