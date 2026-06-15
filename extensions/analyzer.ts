@@ -1,7 +1,7 @@
 /**
  * ContextAnalyzer
- * Responsible for parsing Pi session messages to identify the active working set of files,
- * their token weights, and their temporal status. Uses the code-aware TokenCounter.
+ * Parses Pi session messages to identify the active working set of files,
+ * their token weights, and their temporal status.
  */
 import { TokenCounter } from "./token-counter";
 
@@ -13,7 +13,7 @@ export interface FileOp {
 
 export interface FileContext {
 	path: string;
-	weight: number; // Estimated tokens
+	weight: number;
 	lastOp: FileOp;
 	status: "active" | "stale" | "legacy";
 }
@@ -34,11 +34,6 @@ export interface ContextComposition {
 }
 
 export class ContextAnalyzer {
-	/**
-	 * Analyze session messages to produce a structured ContextComposition.
-	 * @param messages The full session conversation history.
-	 * @param currentTurn The current turn number.
-	 */
 	public analyzeByType(
 		messages: any[],
 		currentTurn: number,
@@ -51,73 +46,130 @@ export class ContextAnalyzer {
 		let fileTokens = 0;
 		let summaryTokens = 0;
 
-		messages.forEach((msg, index) => {
+		for (let index = 0; index < messages.length; index++) {
+			const msg = messages[index];
 			const turn = index + 1;
+			const role = msg.role || "";
+			const msgType = msg.type || "";
 
-			// 1. Categorize and count
-			if (msg.role === "system") {
-				systemTokens += TokenCounter.countMessage(msg);
-				return;
-			}
-
-			if (msg.role === "tool") {
-				toolTokens += TokenCounter.countMessage(msg);
-				return;
-			}
-
-			// Detect compaction summaries (Pi uses customType or specific role)
+			// 1. Compaction summaries
 			if (
-				msg.role === "compaction" ||
-				msg.type === "compaction" ||
+				role === "compaction" ||
+				msgType === "compaction" ||
+				msg.customType === "compaction" ||
 				msg.compactionEntry
 			) {
 				summaryTokens += TokenCounter.countMessage(msg);
-				return;
+				continue;
 			}
 
-			if (msg.role === "user" || msg.role === "assistant") {
-				historyTokens += TokenCounter.countMessage(msg);
-			} else {
-				// Default to history
-				historyTokens += TokenCounter.countMessage(msg);
+			// 2. System messages
+			if (role === "system" || msgType === "system") {
+				systemTokens += TokenCounter.countMessage(msg);
+				continue;
 			}
 
-			// 2. File tracking (only on assistant tool_use blocks)
-			if (msg.role === "assistant" && Array.isArray(msg.content)) {
-				for (const block of msg.content) {
-					if (block.type === "tool_use") {
-						const input = block.input as Record<string, any>;
-						const path = this.extractPath(block.name, input);
+			// 3. Tool results (Pi uses "toolResult")
+			if (role === "toolResult" || role === "tool") {
+				toolTokens += TokenCounter.countMessage(msg);
+				continue;
+			}
 
-						if (path) {
-							const opType = this.getOpType(block.name);
-							const result = this.findToolResult(messages, index, block.id);
-							const content = result?.content || "";
-							const weight = TokenCounter.count(String(content));
-							fileTokens += weight;
-
-							fileRegistry.set(path, {
-								path,
-								weight,
-								lastOp: {
-									type: opType,
-									turn,
-									timestamp: msg.timestamp || Date.now(),
-								},
-								status: this.calculateStatus(turn, currentTurn),
-							});
+			// 4. User messages — track file attachments
+			if (role === "user") {
+				historyTokens += TokenCounter.countMessage(msg);
+				if (Array.isArray(msg.content)) {
+					for (const block of msg.content) {
+						if (block.type === "image" || block.type === "image_url") {
+							const p =
+								block.source?.url || block.image_url?.url || "[image]";
+							const w = TokenCounter.count(JSON.stringify(block));
+							fileTokens += w;
+							if (!fileRegistry.has(p)) {
+								fileRegistry.set(p, {
+									path: p,
+									weight: w,
+									lastOp: {
+										type: "read",
+										turn,
+										timestamp: msg.timestamp || Date.now(),
+									},
+									status: this.calculateStatus(turn, currentTurn),
+								});
+							}
+						}
+						if (block.type === "text" && typeof block.text === "string") {
+							const matches = block.text.match(
+								/(?:\/|[A-Z]:\\)[\w./\\-]+\.\w+/g,
+							);
+							if (matches) {
+								for (const m of matches) {
+									if (!fileRegistry.has(m)) {
+										fileRegistry.set(m, {
+											path: m,
+											weight: TokenCounter.count(m),
+											lastOp: {
+												type: "read",
+												turn,
+												timestamp: msg.timestamp || Date.now(),
+											},
+											status: this.calculateStatus(turn, currentTurn),
+										});
+									}
+								}
+							}
 						}
 					}
 				}
+				continue;
 			}
-		});
+
+			// 5. Assistant messages — track tool_use blocks
+			if (role === "assistant") {
+				historyTokens += TokenCounter.countMessage(msg);
+				if (Array.isArray(msg.content)) {
+					for (const block of msg.content) {
+						if (block.type === "tool_use") {
+							const input = block.input as Record<string, any>;
+							const p = this.extractPath(block.name, input);
+							if (p) {
+								const opType = this.getOpType(block.name);
+								const result = this.findToolResult(
+									messages,
+									index,
+									block.id,
+								);
+								const content = result?.content || "";
+								const w = TokenCounter.count(String(content));
+								fileTokens += w;
+								fileRegistry.set(p, {
+									path: p,
+									weight: w,
+									lastOp: {
+										type: opType,
+										turn,
+										timestamp: msg.timestamp || Date.now(),
+									},
+									status: this.calculateStatus(turn, currentTurn),
+								});
+							}
+						}
+					}
+				}
+				continue;
+			}
+
+			// 6. Everything else
+			historyTokens += TokenCounter.countMessage(msg);
+		}
 
 		const totalTokens =
 			systemTokens + toolTokens + historyTokens + fileTokens + summaryTokens;
 
 		const mk = (tokens: number): ContextSlice => ({
 			tokens: Math.ceil(tokens),
-			percent: totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
+			percent:
+				totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
 		});
 
 		const files_detail = Array.from(fileRegistry.values())
@@ -182,7 +234,10 @@ export class ContextAnalyzer {
 		toolId: string,
 	): any {
 		for (let i = toolTurnIndex + 1; i < messages.length; i++) {
-			if (messages[i].role === "tool" && messages[i].tool_call_id === toolId) {
+			if (
+				messages[i].role === "toolResult" &&
+				messages[i].tool_call_id === toolId
+			) {
 				return messages[i];
 			}
 			if (messages[i].role === "assistant") break;

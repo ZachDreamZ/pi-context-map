@@ -3,16 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ContextAnalyzer = void 0;
 /**
  * ContextAnalyzer
- * Responsible for parsing Pi session messages to identify the active working set of files,
- * their token weights, and their temporal status. Uses the code-aware TokenCounter.
+ * Parses Pi session messages to identify the active working set of files,
+ * their token weights, and their temporal status.
  */
 const token_counter_1 = require("./token-counter");
 class ContextAnalyzer {
-    /**
-     * Analyze session messages to produce a structured ContextComposition.
-     * @param messages The full session conversation history.
-     * @param currentTurn The current turn number.
-     */
     analyzeByType(messages, currentTurn) {
         const fileRegistry = new Map();
         let systemTokens = 0;
@@ -20,58 +15,107 @@ class ContextAnalyzer {
         let historyTokens = 0;
         let fileTokens = 0;
         let summaryTokens = 0;
-        messages.forEach((msg, index) => {
+        for (let index = 0; index < messages.length; index++) {
+            const msg = messages[index];
             const turn = index + 1;
-            // 1. Categorize and count
-            if (msg.role === "system") {
-                systemTokens += token_counter_1.TokenCounter.countMessage(msg);
-                return;
-            }
-            if (msg.role === "tool") {
-                toolTokens += token_counter_1.TokenCounter.countMessage(msg);
-                return;
-            }
-            // Detect compaction summaries (Pi uses customType or specific role)
-            if (msg.role === "compaction" ||
-                msg.type === "compaction" ||
+            const role = msg.role || "";
+            const msgType = msg.type || "";
+            // 1. Compaction summaries
+            if (role === "compaction" ||
+                msgType === "compaction" ||
+                msg.customType === "compaction" ||
                 msg.compactionEntry) {
                 summaryTokens += token_counter_1.TokenCounter.countMessage(msg);
-                return;
+                continue;
             }
-            if (msg.role === "user" || msg.role === "assistant") {
+            // 2. System messages
+            if (role === "system" || msgType === "system") {
+                systemTokens += token_counter_1.TokenCounter.countMessage(msg);
+                continue;
+            }
+            // 3. Tool results (Pi uses "toolResult")
+            if (role === "toolResult" || role === "tool") {
+                toolTokens += token_counter_1.TokenCounter.countMessage(msg);
+                continue;
+            }
+            // 4. User messages — track file attachments
+            if (role === "user") {
                 historyTokens += token_counter_1.TokenCounter.countMessage(msg);
-            }
-            else {
-                // Default to history
-                historyTokens += token_counter_1.TokenCounter.countMessage(msg);
-            }
-            // 2. File tracking (only on assistant tool_use blocks)
-            if (msg.role === "assistant" && Array.isArray(msg.content)) {
-                for (const block of msg.content) {
-                    if (block.type === "tool_use") {
-                        const input = block.input;
-                        const path = this.extractPath(block.name, input);
-                        if (path) {
-                            const opType = this.getOpType(block.name);
-                            const result = this.findToolResult(messages, index, block.id);
-                            const content = result?.content || "";
-                            const weight = token_counter_1.TokenCounter.count(String(content));
-                            fileTokens += weight;
-                            fileRegistry.set(path, {
-                                path,
-                                weight,
-                                lastOp: {
-                                    type: opType,
-                                    turn,
-                                    timestamp: msg.timestamp || Date.now(),
-                                },
-                                status: this.calculateStatus(turn, currentTurn),
-                            });
+                if (Array.isArray(msg.content)) {
+                    for (const block of msg.content) {
+                        if (block.type === "image" || block.type === "image_url") {
+                            const p = block.source?.url || block.image_url?.url || "[image]";
+                            const w = token_counter_1.TokenCounter.count(JSON.stringify(block));
+                            fileTokens += w;
+                            if (!fileRegistry.has(p)) {
+                                fileRegistry.set(p, {
+                                    path: p,
+                                    weight: w,
+                                    lastOp: {
+                                        type: "read",
+                                        turn,
+                                        timestamp: msg.timestamp || Date.now(),
+                                    },
+                                    status: this.calculateStatus(turn, currentTurn),
+                                });
+                            }
+                        }
+                        if (block.type === "text" && typeof block.text === "string") {
+                            const matches = block.text.match(/(?:\/|[A-Z]:\\)[\w./\\-]+\.\w+/g);
+                            if (matches) {
+                                for (const m of matches) {
+                                    if (!fileRegistry.has(m)) {
+                                        fileRegistry.set(m, {
+                                            path: m,
+                                            weight: token_counter_1.TokenCounter.count(m),
+                                            lastOp: {
+                                                type: "read",
+                                                turn,
+                                                timestamp: msg.timestamp || Date.now(),
+                                            },
+                                            status: this.calculateStatus(turn, currentTurn),
+                                        });
+                                    }
+                                }
+                            }
                         }
                     }
                 }
+                continue;
             }
-        });
+            // 5. Assistant messages — track tool_use blocks
+            if (role === "assistant") {
+                historyTokens += token_counter_1.TokenCounter.countMessage(msg);
+                if (Array.isArray(msg.content)) {
+                    for (const block of msg.content) {
+                        if (block.type === "tool_use") {
+                            const input = block.input;
+                            const p = this.extractPath(block.name, input);
+                            if (p) {
+                                const opType = this.getOpType(block.name);
+                                const result = this.findToolResult(messages, index, block.id);
+                                const content = result?.content || "";
+                                const w = token_counter_1.TokenCounter.count(String(content));
+                                fileTokens += w;
+                                fileRegistry.set(p, {
+                                    path: p,
+                                    weight: w,
+                                    lastOp: {
+                                        type: opType,
+                                        turn,
+                                        timestamp: msg.timestamp || Date.now(),
+                                    },
+                                    status: this.calculateStatus(turn, currentTurn),
+                                });
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            // 6. Everything else
+            historyTokens += token_counter_1.TokenCounter.countMessage(msg);
+        }
         const totalTokens = systemTokens + toolTokens + historyTokens + fileTokens + summaryTokens;
         const mk = (tokens) => ({
             tokens: Math.ceil(tokens),
@@ -126,7 +170,8 @@ class ContextAnalyzer {
     }
     findToolResult(messages, toolTurnIndex, toolId) {
         for (let i = toolTurnIndex + 1; i < messages.length; i++) {
-            if (messages[i].role === "tool" && messages[i].tool_call_id === toolId) {
+            if (messages[i].role === "toolResult" &&
+                messages[i].tool_call_id === toolId) {
                 return messages[i];
             }
             if (messages[i].role === "assistant")

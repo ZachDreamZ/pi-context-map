@@ -23,11 +23,6 @@ export interface ContextComposition {
     files_detail: FileContext[];
 }
 export declare class ContextAnalyzer {
-    /**
-     * Analyze session messages to produce a structured ContextComposition.
-     * @param messages The full session conversation history.
-     * @param currentTurn The current turn number.
-     */
     analyzeByType(messages: any[], currentTurn: number): ContextComposition;
     /** Backward-compatible wrapper. */
     analyze(messages: any[], currentTurn: number): ContextComposition;

@@ -1,7 +1,7 @@
 /**
  * pi-context-map
  * Professional Context Profiler for Pi.
- * v0.4.1 — Fixes session.messages crash, tool registration signature, adds tests.
+ * v0.5.1 — Dynamic context window, dark mode, session-unique reports.
  */
 
 import type {
@@ -14,44 +14,55 @@ import { ReportGenerator } from "./generator";
 import { InsightEngine } from "./insights";
 import { LiveReportServer } from "./live-server";
 import * as path from "node:path";
+import * as fs from "node:fs";
 import * as os from "node:os";
 
-const REPORT_PATH = path.join(
-	os.homedir(),
-	".pi",
-	"context-map",
-	"report.html",
-);
+function makeReportPath(sessionName?: string): string {
+	const dir = path.join(os.homedir(), ".pi", "context-map");
+	if (!fs.existsSync(dir)) {
+		fs.mkdirSync(dir, { recursive: true });
+	}
+	const now = new Date();
+	const date = now.toISOString().split("T")[0];
+	const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
+	const safe = (sessionName || "session")
+		.replace(/[^\w.-]/g, "_")
+		.slice(0, 40);
+	const filename = `${date}_${time}_${safe}.html`;
+	return path.join(dir, filename);
+}
 
 export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	const analyzer = new ContextAnalyzer();
 	const liveServer = new LiveReportServer();
 
-	// Accumulate messages from events — this is the correct way to access
-	// session messages in Pi. (pi as any).session?.messages does NOT exist.
 	let sessionMessages: AgentMessage[] = [];
 	let currentTurn = 0;
-	let contextWindow = 128_000; // fallback, updated from Pi system
+	let contextWindow = 128_000;
+	let currentReportPath = makeReportPath();
 
-	// Capture messages and context info before each LLM call
+	// Capture messages and context window from Pi system
 	pi.on("context", (event: any, ctx: any) => {
 		if (event?.messages && Array.isArray(event.messages)) {
 			sessionMessages = event.messages;
 		}
-		// Fetch actual context window from Pi system
 		try {
 			const usage = ctx?.getContextUsage?.();
 			if (usage?.contextWindow && usage.contextWindow > 0) {
 				contextWindow = usage.contextWindow;
 			}
 		} catch {
-			// Ignore — keep fallback
+			// Keep fallback
 		}
 	});
 
-	// Track turns
 	pi.on("turn_start", () => {
 		currentTurn++;
+	});
+
+	// Update report path when session changes
+	pi.on("session_start", () => {
+		currentReportPath = makeReportPath();
 	});
 
 	async function runAnalysis(): Promise<{
@@ -68,30 +79,25 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			contextWindow,
 		);
 
-		// Write to disk
 		try {
-			const fs = await import("node:fs");
-			const dir = path.dirname(REPORT_PATH);
+			const dir = path.dirname(currentReportPath);
 			if (!fs.existsSync(dir)) {
 				fs.mkdirSync(dir, { recursive: true });
 			}
-			fs.writeFileSync(REPORT_PATH, html, "utf8");
+			fs.writeFileSync(currentReportPath, html, "utf8");
 		} catch (err: any) {
 			console.error(`[pi-context-map] Failed to write report: ${err.message}`);
 		}
 
-		// Push to live server if running
 		if (liveServer.isRunning) {
-			liveServer.update(html, REPORT_PATH);
+			liveServer.update(html, currentReportPath);
 		}
 
-		return { composition, insights, reportPath: REPORT_PATH };
+		return { composition, insights, reportPath: currentReportPath };
 	}
 
-	// Start live server
 	const serverUrl = await liveServer.start();
 
-	// Register /context-map command
 	pi.registerCommand("context-map", {
 		description:
 			"Generate a visual context map with actionable insights. Use 'stop' to terminate the live server.",
@@ -129,7 +135,6 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		},
 	});
 
-	// Register the tool for agent use
 	pi.registerTool({
 		name: "context-map",
 		label: "Context Map",
@@ -146,7 +151,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			_ctx: any,
 		) {
 			try {
-				const { composition, insights } = await runAnalysis();
+				const { composition, insights, reportPath } = await runAnalysis();
 				const usagePercent =
 					composition.total.tokens > 0
 						? Math.round((composition.total.tokens / contextWindow) * 100)
@@ -166,7 +171,8 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 						...insights.map(
 							(i) => `[${i.severity.toUpperCase()}] ${i.title}: ${i.message}`,
 						),
-						serverUrl ? `Live report: ${serverUrl}` : "",
+						`Report: ${reportPath}`,
+						serverUrl ? `Live: ${serverUrl}` : "",
 					]
 						.filter(Boolean)
 						.join("\n"),
@@ -181,34 +187,30 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		},
 	});
 
-	// Auto-warning on high context before compaction
 	pi.on("session_before_compact", (_event: any, ctx: any) => {
 		const tokens = _event?.preparation?.tokensBefore;
 		if (tokens && tokens > 100_000) {
 			ctx.ui.notify(
-				`High context load detected (${(tokens / 1000).toFixed(1)}k tokens). Try /context-map to see what's consuming space.`,
+				`High context load (${(tokens / 1000).toFixed(1)}k tokens). Try /context-map to see what's consuming space.`,
 				"info",
 			);
 		}
 	});
 
-	// Auto-refresh after each assistant message if server is running
 	pi.on("message_end", async (_event: any) => {
 		if (_event?.message?.role === "assistant" && liveServer.isRunning) {
 			try {
 				await runAnalysis();
 			} catch {
-				// Silently ignore auto-refresh failures
+				// Ignore auto-refresh failures
 			}
 		}
 	});
 
-	// Graceful shutdown
 	pi.on("session_shutdown", () => {
 		liveServer.stop();
 	});
 
-	// Kill server when process exits
 	process.on("exit", () => liveServer.stop());
 	process.on("SIGINT", () => {
 		liveServer.stop();

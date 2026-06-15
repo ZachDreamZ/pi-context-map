@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.6.0] - 2026-06-15
+### Bug Fixes
+- **Fixed composition analysis**: Changed `role === "tool"` to `role === "toolResult"` to match Pi's actual message format. Tools and files now show correct percentages instead of 0%.
+- **File attachment detection**: Now detects images (type: "image") and file paths in user messages, not just assistant tool_use blocks.
+- **Compaction summary detection**: Improved detection of Pi compaction entries via `customType` field.
+
+### Features
+- **Session-unique reports**: Each report is saved with date, time, and session name (e.g., `2026-06-15_14-30-00_my-session.html`). Old reports are preserved for history.
+- **Auto-report path on session start**: New session gets a fresh report path automatically.
+
+## [0.5.1] - 2026-06-15
+### Bug Fixes
+- **Fixed toggle symbol**: Dark mode now correctly shows sun icon + "Light" label. Light mode shows moon icon + "Dark" label. Uses fresh DOM queries to survive SSE body replacement.
+- **Toggle moved to corner**: Button is now fixed in the top-right corner of the page, not inline with the live badge.
+- **Event delegation**: Theme toggle click handler uses event delegation so it survives SSE body replacement without re-binding.
+
 ## [0.5.0] - 2026-06-15
 ### Features
 - **Dark mode toggle**: Light/dark theme switcher in the report header. Preference saved to localStorage and restored on next load. Theme persists across SSE live updates.
