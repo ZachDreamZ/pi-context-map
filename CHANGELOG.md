@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.1] - 2026-06-15
+### Bug Fixes
+- **Fixed insights dropdown**: Changed from direct `addEventListener` to event delegation (`document.addEventListener('click', ...)` with `e.target.closest('.insight-header')`). The dropdown now works after SSE body replacement.
+- **Fixed auto-open browser**: Added `cmd /c start` with `explorer` fallback for Windows. Browser now opens reliably on first `/context-map` invocation.
+- **Removed unused variable**: Cleaned up `reportPath` destructuring warning in command handler.
+
 ## [0.7.0] - 2026-06-15
 ### Bug Fixes
 - **Fixed token accuracy**: Now uses Pi's actual token count from `ctx.getContextUsage()` instead of heuristic estimation. The usage percentage now matches Pi's terminal display.

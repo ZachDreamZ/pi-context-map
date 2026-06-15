@@ -56,22 +56,31 @@ function makeReportPath(sessionName) {
     const now = new Date();
     const date = now.toISOString().split("T")[0];
     const time = now.toTimeString().split(" ")[0].replace(/:/g, "-");
-    const safe = (sessionName || "session")
-        .replace(/[^\w.-]/g, "_")
-        .slice(0, 40);
+    const safe = (sessionName || "session").replace(/[^\w.-]/g, "_").slice(0, 40);
     const filename = `${date}_${time}_${safe}.html`;
     return path.join(dir, filename);
 }
 function openBrowser(url) {
     const platform = process.platform;
-    if (platform === "win32") {
-        (0, node_child_process_1.exec)(`start "" "${url}"`);
+    try {
+        if (platform === "win32") {
+            // Use cmd /c start with separate title arg to handle URLs with special chars
+            (0, node_child_process_1.exec)(`cmd /c start "" "${url}"`, (err) => {
+                if (err) {
+                    // Fallback: try explorer directly
+                    (0, node_child_process_1.exec)(`explorer "${url}"`);
+                }
+            });
+        }
+        else if (platform === "darwin") {
+            (0, node_child_process_1.exec)(`open "${url}"`);
+        }
+        else {
+            (0, node_child_process_1.exec)(`xdg-open "${url}"`);
+        }
     }
-    else if (platform === "darwin") {
-        (0, node_child_process_1.exec)(`open "${url}"`);
-    }
-    else {
-        (0, node_child_process_1.exec)(`xdg-open "${url}"`);
+    catch {
+        // Silent — browser open is best-effort
     }
 }
 async function piContextMap(pi) {
@@ -189,7 +198,7 @@ async function piContextMap(pi) {
             }
             ctx.ui.notify("Analyzing session context...", "info");
             try {
-                const { composition, insights, reportPath } = await runAnalysis();
+                const { composition, insights } = await runAnalysis();
                 const criticalCount = insights.filter((i) => i.severity === "critical").length;
                 const summary = criticalCount > 0
                     ? `Context map generated. ${criticalCount} critical insight(s) found.`

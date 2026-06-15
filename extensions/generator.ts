@@ -648,15 +648,15 @@ h2:first-of-type { margin-top: 48px; }
 		applyTheme(cur === 'dark' ? 'light' : 'dark');
 	});
 
-	// Insight toggles
-	var btns = document.querySelectorAll('.insight-header');
-	for (var j = 0; j < btns.length; j++) {
-		btns[j].addEventListener('click', function() {
-			var card = this.closest('.insight-card');
-			var was = card.classList.toggle('collapsed');
-			this.setAttribute('aria-expanded', was ? 'false' : 'true');
-		});
-	}
+	// Insight toggles (event delegation — survives SSE body replacement)
+	document.addEventListener('click', function(e) {
+		var btn = e.target.closest('.insight-header');
+		if (!btn) return;
+		var card = btn.closest('.insight-card');
+		if (!card) return;
+		var was = card.classList.toggle('collapsed');
+		btn.setAttribute('aria-expanded', was ? 'false' : 'true');
+	});
 
 	// Live SSE
 	try {

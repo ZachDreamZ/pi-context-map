@@ -34,12 +34,22 @@ function makeReportPath(sessionName?: string): string {
 
 function openBrowser(url: string): void {
 	const platform = process.platform;
-	if (platform === "win32") {
-		exec(`start "" "${url}"`);
-	} else if (platform === "darwin") {
-		exec(`open "${url}"`);
-	} else {
-		exec(`xdg-open "${url}"`);
+	try {
+		if (platform === "win32") {
+			// Use cmd /c start with separate title arg to handle URLs with special chars
+			exec(`cmd /c start "" "${url}"`, (err) => {
+				if (err) {
+					// Fallback: try explorer directly
+					exec(`explorer "${url}"`);
+				}
+			});
+		} else if (platform === "darwin") {
+			exec(`open "${url}"`);
+		} else {
+			exec(`xdg-open "${url}"`);
+		}
+	} catch {
+		// Silent — browser open is best-effort
 	}
 }
 
@@ -192,7 +202,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 
 			ctx.ui.notify("Analyzing session context...", "info");
 			try {
-				const { composition, insights, reportPath } = await runAnalysis();
+				const { composition, insights } = await runAnalysis();
 				const criticalCount = insights.filter(
 					(i) => i.severity === "critical",
 				).length;
