@@ -1,6 +1,6 @@
 {
   "name": "pi-context-map",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Professional context profiler for Pi that visualizes the session context window, token distribution, and integrates with Nexus packages for actionable insights.",
   "keywords": [
     "pi-package",

@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.2] - 2026-06-15
+### Bug Fixes
+- **Fixed Pi message format**: Now uses `type: "toolCall"` (not `"tool_use"`) and `toolCallId` (not `tool_call_id`) to match Pi's actual `@mariozechner/pi-ai` types.
+- **System prompt detection**: Now accepts `systemPrompt` parameter from Pi's `ctx.getSystemPrompt()`. System slice no longer shows 0%.
+- **Tool results detection**: Changed to `role === "toolResult"` to match Pi's actual message format.
+- **File tracking from tool results**: Now extracts file paths from `toolResult` messages (read/write/edit tool results).
+
+### Features
+- **Message persistence**: Messages are saved via `appendEntry` on compaction to survive session reloads.
+- **Enhanced diagnostics**: `/context-map` command now shows message count, system tokens, and tool tokens in the notification.
+
 ## [0.6.1] - 2026-06-15
 ### Bug Fixes
 - **Fixed libuv assertion on Windows**: Removed `process.on('exit')` handler and `process.exit(0)` calls that left server handles open. Server now closes synchronously via `closeAllConnections()`.

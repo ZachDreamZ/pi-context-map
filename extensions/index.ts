@@ -1,7 +1,7 @@
 /**
  * pi-context-map
  * Professional Context Profiler for Pi.
- * v0.5.1 — Dynamic context window, dark mode, session-unique reports.
+ * v0.6.2 — Fixed Pi message format (toolCall), system prompt detection, message persistence.
  */
 
 import type {
@@ -37,9 +37,10 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	let sessionMessages: AgentMessage[] = [];
 	let currentTurn = 0;
 	let contextWindow = 128_000;
+	let systemPrompt = "";
 	let currentReportPath = makeReportPath();
 
-	// Capture messages and context window from Pi system
+	// Capture messages, context window, and system prompt from Pi system
 	pi.on("context", (event: any, ctx: any) => {
 		if (event?.messages && Array.isArray(event.messages)) {
 			sessionMessages = event.messages;
@@ -52,6 +53,15 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		} catch {
 			// Keep fallback
 		}
+		// Get system prompt from Pi
+		try {
+			const sp = ctx?.getSystemPrompt?.();
+			if (sp && typeof sp === "string") {
+				systemPrompt = sp;
+			}
+		} catch {
+			// Keep empty
+		}
 	});
 
 	pi.on("turn_start", () => {
@@ -63,13 +73,32 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		currentReportPath = makeReportPath();
 	});
 
+	// Persist messages on compaction so they survive reload
+	pi.on("session_compact", (event: any) => {
+		if (event?.compactionEntry) {
+			try {
+				pi.appendEntry("context-map-snapshot", {
+					messages: sessionMessages.slice(-50), // Keep last 50 messages
+					turn: currentTurn,
+					timestamp: Date.now(),
+				});
+			} catch {
+				// Ignore persistence errors
+			}
+		}
+	});
+
 	async function runAnalysis(): Promise<{
 		composition: ReturnType<typeof analyzer.analyzeByType>;
 		insights: ReturnType<typeof InsightEngine.generate>;
 		reportPath: string;
 	}> {
 		const messages = sessionMessages.length > 0 ? sessionMessages : [];
-		const composition = analyzer.analyzeByType(messages, currentTurn);
+		const composition = analyzer.analyzeByType(
+			messages,
+			currentTurn,
+			systemPrompt,
+		);
 		const insights = InsightEngine.generate(composition);
 		const html = ReportGenerator.generateHTML(
 			composition,
@@ -108,7 +137,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 
 			ctx.ui.notify("Analyzing session context...", "info");
 			try {
-				const { insights, reportPath } = await runAnalysis();
+				const { composition, insights, reportPath } = await runAnalysis();
 				const criticalCount = insights.filter(
 					(i) => i.severity === "critical",
 				).length;
@@ -120,6 +149,9 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 				if (serverUrl) {
 					details += ` | Live: ${serverUrl}`;
 				}
+				details += ` | Messages: ${sessionMessages.length}`;
+				details += ` | System: ${composition.system.tokens}t (${composition.system.percent}%)`;
+				details += ` | Tools: ${composition.tools.tokens}t (${composition.tools.percent}%)`;
 				ctx.ui.notify(
 					`${summary} ${details}`,
 					criticalCount > 0 ? "warning" : "success",
@@ -137,7 +169,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		name: "context-map",
 		label: "Context Map",
 		description:
-			"Analyze the current session context composition and return actionable insights. The live localhost report will auto-update.",
+			"Analyze the current session context composition and return actionable insights.",
 		parameters: {
 			type: "object",
 			properties: {},
@@ -160,7 +192,8 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 					`History ${composition.history.percent}%, Files ${composition.files.percent}%, ` +
 					`Summaries ${composition.summaries.percent}%. ` +
 					`Usage: ${usagePercent}% of ${(contextWindow / 1000).toFixed(0)}k window. ` +
-					`${insights.length} insight(s) generated.`;
+					`Messages: ${sessionMessages.length}. ` +
+					`${insights.length} insight(s).`;
 				return {
 					type: "text" as const,
 					content: [

@@ -14,39 +14,60 @@ describe("ContextAnalyzer", () => {
 		expect(result.files_detail).toEqual([]);
 	});
 
-	test("system messages are categorized correctly", () => {
-		const messages = [
-			{ role: "system", content: "You are a helpful assistant." },
-		];
-		const result = analyzer.analyzeByType(messages, 1);
+	test("system prompt is categorized as system tokens", () => {
+		const result = analyzer.analyzeByType(
+			[],
+			1,
+			"You are a helpful assistant.",
+		);
 		expect(result.system.tokens).toBeGreaterThan(0);
 		expect(result.tools.tokens).toBe(0);
 		expect(result.history.tokens).toBe(0);
 	});
 
-	test("tool messages are categorized correctly", () => {
+	test("toolResult messages are categorized as tools", () => {
+		// Pi uses role="toolResult" with toolCallId and toolName
 		const messages = [
-			{ role: "tool", content: "Result data", tool_call_id: "t1" },
+			{
+				role: "toolResult",
+				toolCallId: "t1",
+				toolName: "bash",
+				content: [{ type: "text", text: "Result data" }],
+				isError: false,
+			},
 		];
 		const result = analyzer.analyzeByType(messages, 1);
 		expect(result.tools.tokens).toBeGreaterThan(0);
 	});
 
 	test("assistant messages are categorized as history", () => {
-		const messages = [{ role: "assistant", content: "I will help you." }];
+		const messages = [
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "I will help you." }],
+			},
+		];
 		const result = analyzer.analyzeByType(messages, 1);
 		expect(result.history.tokens).toBeGreaterThan(0);
 	});
 
 	test("user messages are categorized as history", () => {
-		const messages = [{ role: "user", content: "Help me debug this." }];
+		const messages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Help me debug this." }],
+			},
+		];
 		const result = analyzer.analyzeByType(messages, 1);
 		expect(result.history.tokens).toBeGreaterThan(0);
 	});
 
 	test("compaction messages are categorized as summaries", () => {
 		const messages = [
-			{ role: "compaction", content: "Summary of prior conversation." },
+			{
+				role: "compaction",
+				content: [{ type: "text", text: "Summary of prior conversation." }],
+			},
 		];
 		const result = analyzer.analyzeByType(messages, 1);
 		expect(result.summaries.tokens).toBeGreaterThan(0);
@@ -54,12 +75,23 @@ describe("ContextAnalyzer", () => {
 
 	test("percentages sum to ~100", () => {
 		const messages = [
-			{ role: "system", content: "System prompt" },
-			{ role: "user", content: "Hello" },
-			{ role: "assistant", content: "Hi there" },
-			{ role: "tool", content: "Output", tool_call_id: "t1" },
+			{
+				role: "user",
+				content: [{ type: "text", text: "Hello" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "Hi there" }],
+			},
+			{
+				role: "toolResult",
+				toolCallId: "t1",
+				toolName: "bash",
+				content: [{ type: "text", text: "Output" }],
+				isError: false,
+			},
 		];
-		const result = analyzer.analyzeByType(messages, 1);
+		const result = analyzer.analyzeByType(messages, 1, "System prompt");
 		const totalPercent =
 			result.system.percent +
 			result.tools.percent +
@@ -70,23 +102,26 @@ describe("ContextAnalyzer", () => {
 		expect(totalPercent).toBeLessThanOrEqual(105);
 	});
 
-	test("file tracking works for tool_use blocks", () => {
+	test("file tracking works for toolCall blocks (Pi format)", () => {
+		// Pi uses type="toolCall" with id, name, arguments
 		const messages = [
 			{
 				role: "assistant",
 				content: [
 					{
-						type: "tool_use",
-						name: "read",
-						input: { path: "src/auth.ts" },
+						type: "toolCall",
 						id: "t1",
+						name: "read",
+						arguments: { path: "src/auth.ts" },
 					},
 				],
 			},
 			{
-				role: "tool",
-				content: "export function login() {}",
-				tool_call_id: "t1",
+				role: "toolResult",
+				toolCallId: "t1",
+				toolName: "read",
+				content: [{ type: "text", text: "export function login() {}" }],
+				isError: false,
 			},
 		];
 		const result = analyzer.analyzeByType(messages, 2);
@@ -95,8 +130,69 @@ describe("ContextAnalyzer", () => {
 		expect(result.files_detail[0].lastOp.type).toBe("read");
 	});
 
+	test("file tracking works for write toolCall", () => {
+		const messages = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "toolCall",
+						id: "t2",
+						name: "write",
+						arguments: { path: "output.txt", content: "data" },
+					},
+				],
+			},
+			{
+				role: "toolResult",
+				toolCallId: "t2",
+				toolName: "write",
+				content: [{ type: "text", text: "File written" }],
+				isError: false,
+			},
+		];
+		const result = analyzer.analyzeByType(messages, 2);
+		expect(result.files_detail.length).toBe(1);
+		expect(result.files_detail[0].lastOp.type).toBe("write");
+	});
+
+	test("image attachments in user messages are tracked", () => {
+		const messages = [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Look at this" },
+					{ type: "image", data: "base64...", mimeType: "image/png" },
+				],
+			},
+		];
+		const result = analyzer.analyzeByType(messages, 1);
+		expect(result.files_detail.length).toBe(1);
+		expect(result.files_detail[0].path).toBe("[image]");
+	});
+
+	test("file paths in user text are tracked", () => {
+		const messages = [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Fix the file at /src/index.ts please" },
+				],
+			},
+		];
+		const result = analyzer.analyzeByType(messages, 1);
+		expect(result.files_detail.length).toBe(1);
+		expect(result.files_detail[0].path).toBe("/src/index.ts");
+	});
+
 	test("analyze() backward compatibility wrapper works", () => {
-		const result = analyzer.analyze([{ role: "user", content: "Hi" }], 1);
+		const messages = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Hi" }],
+			},
+		];
+		const result = analyzer.analyze(messages, 1);
 		expect(result.total.tokens).toBeGreaterThan(0);
 		expect(result.history.tokens).toBeGreaterThan(0);
 	});

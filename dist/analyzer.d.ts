@@ -23,10 +23,11 @@ export interface ContextComposition {
     files_detail: FileContext[];
 }
 export declare class ContextAnalyzer {
-    analyzeByType(messages: any[], currentTurn: number): ContextComposition;
+    analyzeByType(messages: any[], currentTurn: number, systemPrompt?: string): ContextComposition;
     /** Backward-compatible wrapper. */
     analyze(messages: any[], currentTurn: number): ContextComposition;
     private extractPath;
+    private extractPathFromToolResult;
     private getOpType;
     private calculateStatus;
     private findToolResult;
