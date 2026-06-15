@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.3] - 2026-06-15
+### Apple-Inspired HTML Redesign
+- **Complete visual overhaul**: Report now uses Apple design language — white canvas, Inter font (SF Pro substitute), Action Blue (#0066cc) accent, 18px card radius, pill-shaped inputs.
+- **Usage ring**: SVG donut chart shows context window usage at a glance. Changes color when critical (>80%) or warning (>60%).
+- **Stat tiles**: 4-column hairline-separated grid (Total Tokens, Files, Alerts, Window %).
+- **Live badge**: Green pill indicator with pulsing dot shows when the live server is active.
+- **Cleaner file cards**: 14px radius, thin border, hover turns accent blue. Status chips with semantic colors.
+- **Rounded search/filter**: Pill-shaped search input (44px height) and filter dropdown.
+- **Responsive layout**: Adapts to mobile with 2-column stats and single-column files.
+- **Inter font**: Loaded from Google Fonts for professional typography on all platforms.
+
+## [0.4.2] - 2026-06-15
+### Silent Boot & Cleanup
+- **Removed boot messages**: All console.log startup lines removed from `live-server.ts` and `index.ts`. Extension loads silently.
+
 ## [0.4.1] - 2026-06-15
 ### Critical Fix & Test Suite
 - **Fixed CRASH**: `(pi as any).session?.messages` → now uses event-based message accumulation. `/context-map` no longer crashes with "Cannot read properties of undefined (reading 'messages')".
@@ -8,13 +23,6 @@
 - **Test Suite**: 34 tests across 5 suites (analyzer, token-counter, insights, generator, live-server).
 - **Type Declarations**: Proper `pi-coding-agent.d.ts` with `ToolDefinition`, `ExtensionCommandContext`, `ExtensionContext`.
 - **Build Clean**: TypeScript strict mode passes with zero errors.
-- **Live SSE Server**: New `LiveReportServer` binds to 127.0.0.1 on a free port and serves the report at `/`.
-- **Auto-Updates**: Server-Sent Events endpoint at `/events` pushes the latest HTML whenever the analysis re-runs (e.g., after each assistant message).
-- **Token Auth**: Each server instance generates a unique session token; the HTML client picks it up via a `<meta>` tag and includes it in the SSE URL to prevent unauthorized access.
-- **Origin Validation**: Only connections from `http://127.0.0.1:<port>` or `http://localhost:<port>` are allowed.
-- **Graceful Shutdown**: `/context-map stop` or `session_shutdown` event stops the server cleanly.
-- **Auto-Refresh**: The `message_end` event triggers an automatic re-analysis when the live server is running, so the browser view stays in sync.
-- **Health & Stop Endpoints**: `/health` for liveness, `POST /stop` for remote termination.
 
 ## [0.3.1] - 2026-06-14
 ### Design & Interactivity Upgrade

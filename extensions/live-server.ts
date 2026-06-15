@@ -69,7 +69,6 @@ export class LiveReportServer {
 					const addr = this.server?.address() as AddressInfo | null;
 					if (addr) {
 						this.port = addr.port;
-						console.log(`[pi-context-map] Live server: ${this.url}`);
 						resolve(this.url);
 					} else {
 						resolve(null);

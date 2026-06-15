@@ -30,9 +30,9 @@ describe("ReportGenerator", () => {
 
 	test("generateHTML contains expected elements", () => {
 		const html = ReportGenerator.generateHTML(baseComposition, baseInsights);
-		expect(html).toContain("pi-context-map");
+		expect(html).toContain("Context Profiler");
 		expect(html).toContain("Context Composition");
-		expect(html).toContain("insights");
+		expect(html).toContain("Insights");
 		expect(html).toContain("</html>");
 	});
 
@@ -51,7 +51,7 @@ describe("ReportGenerator", () => {
 		const html = ReportGenerator.generateHTML(comp, baseInsights);
 		expect(html).toContain("src/app.ts");
 		expect(html).toContain("2,000");
-		expect(html).toContain("read");
+		expect(html).toContain("Read");
 	});
 
 	test("generateHTML includes insight cards", () => {
@@ -82,7 +82,7 @@ describe("ReportGenerator", () => {
 		};
 		const html = ReportGenerator.generateHTML(emptyComposition, []);
 		expect(html).toBeTruthy();
-		expect(html).toContain("pi-context-map");
+		expect(html).toContain("Context Profiler");
 		expect(html).toContain("</html>");
 	});
 });

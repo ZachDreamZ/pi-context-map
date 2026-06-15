@@ -1,7 +1,8 @@
 "use strict";
 /**
  * ReportGenerator
- * Generates a visual HTML dashboard based on the ContextMap.
+ * Generates a visual HTML dashboard based on the ContextComposition.
+ * Apple-inspired design: clean whitespace, SF Pro typography, single blue accent.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReportGenerator = void 0;
@@ -10,680 +11,608 @@ const node_path_1 = require("node:path");
 const node_os_1 = require("node:os");
 class ReportGenerator {
     static generateHTML(composition, insights) {
+        const total = composition.total.tokens;
+        const usagePercent = total > 0 ? Math.round((total / 128_000) * 100) : 0;
         const fileCards = composition.files_detail
             .map((file) => `
-			<div class="file-card ${file.status}" data-path="${ReportGenerator.escapeHtml(file.path)}" data-status="${file.status}">
-				<div class="file-header">
+			<div class="file-card" data-path="${ReportGenerator.escapeHtml(file.path)}" data-status="${file.status}">
+				<div class="file-card-top">
 					<span class="file-path">${ReportGenerator.escapeHtml(file.path)}</span>
-					<span class="file-weight">${file.weight.toLocaleString()} tokens</span>
+					<span class="file-weight">${file.weight.toLocaleString()}</span>
 				</div>
-				<div class="file-footer">
-					<span class="op-badge">${ReportGenerator.getOpIcon(file.lastOp.type)} ${file.lastOp.type}</span>
-					<span class="turn-badge">Turn ${file.lastOp.turn}</span>
-					<span class="status-text">${file.status.toUpperCase()}</span>
+				<div class="file-card-bottom">
+					<span class="op-tag">${ReportGenerator.getOpIcon(file.lastOp.type)} &middot; Turn ${file.lastOp.turn}</span>
+					<span class="status-chip ${file.status}">${file.status}</span>
 				</div>
-				<div class="weight-bar">
-					<div class="weight-fill" style="width: ${Math.min(100, (file.weight / 1000) * 100)}%"></div>
+				<div class="file-bar">
+					<div class="file-bar-fill" style="width: ${Math.min(100, (file.weight / Math.max(1, total)) * 100 * 3)}%"></div>
 				</div>
-			</div>
-		`)
+			</div>`)
             .join("");
         const insightCards = insights
-            .map((insight, i) => {
-            // Critical and warning are expanded by default; info is collapsed
-            const isCollapsed = insight.severity === "info" ? " collapsed" : "";
-            return `
-			<div class="insight-card ${insight.severity}${isCollapsed}">
-				<button class="insight-header" data-toggle="insight-${i}" aria-expanded="${isCollapsed ? "false" : "true"}">
-					<svg class="insight-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4,6 8,10 12,6"/></svg>
-					<span class="insight-severity">${insight.severity.toUpperCase()}</span>
+            .map((insight, i) => `
+			<div class="insight-card ${insight.severity}${insight.severity === "info" ? " collapsed" : ""}">
+				<button class="insight-header" data-target="i${i}" aria-expanded="${insight.severity !== "info"}">
+					<svg class="insight-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4 3l4 3-4 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+					<span class="insight-severity">${insight.severity}</span>
 					<span class="insight-title">${ReportGenerator.escapeHtml(insight.title)}</span>
 				</button>
 				<div class="insight-body">
-					${ReportGenerator.escapeHtml(insight.message)}
-					${insight.command ? `<div class="insight-command">Suggested: <code>${insight.command}</code></div>` : ""}
+					<p>${ReportGenerator.escapeHtml(insight.message)}</p>
+					${insight.command ? `<div class="insight-action"><code>${insight.command}</code></div>` : ""}
 				</div>
-			</div>
-		`;
-        })
+			</div>`)
             .join("");
-        return `
-<!DOCTYPE html>
+        return `<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pi Context Profiler</title>
-    <style>
-        /* ============================================
-           pi-context-map Report — Design Tokens
-           Based on Linear design system + shadcn/ui card patterns
-           ============================================ */
-        :root {
-            /* Surfaces */
-            --canvas: #010102;
-            --surface-1: #0f1011;
-            --surface-2: #141516;
-            --surface-3: #18191a;
-            --hairline: #23252a;
-            --hairline-strong: #34343a;
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="context-map-token" content="{{TOKEN}}">
+<title>Context Profiler</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
+<style>
+:root {
+	--canvas: #ffffff;
+	--canvas-alt: #f5f5f7;
+	--surface: #ffffff;
+	--hairline: #e0e0e0;
+	--hairline-soft: rgba(0,0,0,0.06);
+	--ink: #1d1d1f;
+	--ink-secondary: #6e6e73;
+	--ink-tertiary: #86868b;
+	--ink-quaternary: #a1a1a6;
+	--accent: #0066cc;
+	--accent-hover: #0071e3;
+	--accent-soft: rgba(0,102,204,0.08);
+	--success: #30d158;
+	--success-soft: rgba(48,209,88,0.10);
+	--warning: #ff9f0a;
+	--warning-soft: rgba(255,159,10,0.10);
+	--danger: #ff453a;
+	--danger-soft: rgba(255,69,58,0.10);
+	--seg-system: #5e5ce6;
+	--seg-tools: #ff375f;
+	--seg-history: #bf5af2;
+	--seg-files: #007aff;
+	--seg-summaries: #34c759;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+	background: var(--canvas);
+	color: var(--ink);
+	font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+	font-size: 17px;
+	line-height: 1.47;
+	letter-spacing: -0.374px;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+.container { max-width: 980px; margin: 0 auto; padding: 80px 24px; }
 
-            /* Text */
-            --ink: #f7f8f8;
-            --ink-muted: #d0d6e0;
-            --ink-subtle: #8a8f98;
-            --ink-tertiary: #62666d;
+/* Header */
+header { margin-bottom: 64px; }
+h1 {
+	font-size: 40px;
+	font-weight: 600;
+	line-height: 1.1;
+	letter-spacing: 0;
+	margin-bottom: 4px;
+}
+.subtitle { color: var(--ink-secondary); font-size: 17px; font-weight: 400; margin-bottom: 40px; }
 
-            /* Accent */
-            --accent: #5e6ad2;
-            --accent-hover: #828fff;
-            --accent-soft: rgba(94, 106, 210, 0.12);
+/* Stat tiles */
+.stats {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 1px;
+	background: var(--hairline);
+	border: 1px solid var(--hairline);
+	border-radius: 18px;
+	overflow: hidden;
+	margin-bottom: 24px;
+}
+.stat {
+	background: var(--surface);
+	padding: 24px 20px;
+	text-align: center;
+}
+.stat:not(:last-child) { border-right: 1px solid var(--hairline); }
+.stat-value {
+	font-size: 28px;
+	font-weight: 600;
+	letter-spacing: -0.374px;
+	display: block;
+	font-variant-numeric: tabular-nums;
+}
+.stat-label {
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--ink-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	margin-top: 4px;
+	display: block;
+}
 
-            /* Semantic */
-            --success: #27a644;
-            --warning: #eab308;
-            --danger: #ef4444;
-            --warning-soft: rgba(234, 179, 8, 0.10);
-            --danger-soft: rgba(239, 68, 68, 0.10);
+/* Composition card */
+.composition-card {
+	background: var(--canvas-alt);
+	border-radius: 18px;
+	padding: 32px;
+}
+.composition-card h3 {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--ink-tertiary);
+	text-transform: uppercase;
+	letter-spacing: 0.8px;
+	margin-bottom: 20px;
+}
+.bar {
+	height: 8px;
+	background: rgba(0,0,0,0.06);
+	border-radius: 4px;
+	display: flex;
+	overflow: hidden;
+	margin-bottom: 16px;
+}
+.bar-seg { height: 100%; transition: width 0.4s ease; }
+.bar-seg.seg-system { background: var(--seg-system); }
+.bar-seg.seg-tools { background: var(--seg-tools); }
+.bar-seg.seg-history { background: var(--seg-history); }
+.bar-seg.seg-files { background: var(--seg-files); }
+.bar-seg.seg-summaries { background: var(--seg-summaries); }
 
-            /* Composition segments */
-            --seg-system: #6366f1;
-            --seg-tools: #ec4899;
-            --seg-history: #a855f7;
-            --seg-files: #38bdf8;
-            --seg-summaries: #14b8a6;
-        }
+.legend {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+	gap: 8px 16px;
+}
+.legend-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px;
+	color: var(--ink-secondary);
+	font-variant-numeric: tabular-nums;
+}
+.legend-dot { width: 8px; height: 8px; border-radius: 4px; flex-shrink: 0; }
+.legend-dot.sys { background: var(--seg-system); }
+.legend-dot.tools { background: var(--seg-tools); }
+.legend-dot.hist { background: var(--seg-history); }
+.legend-dot.files { background: var(--seg-files); }
+.legend-dot.summ { background: var(--seg-summaries); }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+/* Section titles */
+h2 {
+	font-size: 28px;
+	font-weight: 600;
+	letter-spacing: 0.196px;
+	margin: 64px 0 24px;
+}
+h2:first-of-type { margin-top: 48px; }
 
-        body {
-            background: var(--canvas);
-            color: var(--ink);
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
-            -webkit-font-smoothing: antialiased;
-        }
+/* Insight cards */
+.insight-card {
+	background: var(--surface);
+	border: 1px solid var(--hairline);
+	border-left: 3px solid var(--accent);
+	border-radius: 14px;
+	margin-bottom: 8px;
+	overflow: hidden;
+	transition: box-shadow 0.2s;
+}
+.insight-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+.insight-card.critical { border-left-color: var(--danger); background: linear-gradient(90deg, var(--danger-soft) 0%, var(--surface) 100%); }
+.insight-card.warning { border-left-color: var(--warning); background: linear-gradient(90deg, var(--warning-soft) 0%, var(--surface) 100%); }
+.insight-card.success { border-left-color: var(--success); background: linear-gradient(90deg, var(--success-soft) 0%, var(--surface) 100%); }
 
-        .container { max-width: 1200px; margin: 0 auto; padding: 48px 32px; }
+.insight-header {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 14px 16px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	font: inherit;
+	text-align: left;
+	color: inherit;
+	-webkit-tap-highlight-color: transparent;
+}
+.insight-header:hover { background: var(--hairline-soft); }
+.insight-chevron {
+	flex-shrink: 0;
+	color: var(--ink-quaternary);
+	transition: transform 0.2s ease;
+}
+.collapsed .insight-chevron { transform: rotate(-90deg); }
 
-        /* ===== Header ===== */
-        header { margin-bottom: 48px; }
-        h1 {
-            font-size: 32px;
-            font-weight: 600;
-            letter-spacing: -0.8px;
-            margin-bottom: 8px;
-            color: var(--ink);
-        }
-        .subtitle { color: var(--ink-subtle); font-size: 14px; margin-bottom: 32px; }
+.insight-severity {
+	font-size: 11px;
+	font-weight: 600;
+	padding: 3px 8px;
+	border-radius: 6px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	background: var(--accent-soft);
+	color: var(--accent);
+	flex-shrink: 0;
+}
+.insight-card.critical .insight-severity { background: var(--danger-soft); color: var(--danger); }
+.insight-card.warning .insight-severity { background: var(--warning-soft); color: var(--warning); }
 
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-        }
-        .stat-card {
-            background: var(--surface-1);
-            border: 1px solid var(--hairline);
-            border-radius: 6px;
-            padding: 20px;
-            text-align: left;
-        }
-        .stat-value {
-            font-size: 24px;
-            font-weight: 600;
-            color: var(--ink);
-            display: block;
-            font-variant-numeric: tabular-nums;
-        }
-        .stat-label {
-            color: var(--ink-subtle);
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-top: 4px;
-            display: block;
-        }
+.insight-title { font-size: 14px; font-weight: 600; color: var(--ink); }
+.insight-body {
+	padding: 0 16px 14px 48px;
+	font-size: 14px;
+	color: var(--ink-secondary);
+	line-height: 1.6;
+}
+.collapsed .insight-body { display: none; }
+.insight-body p { margin-bottom: 8px; }
+.insight-action code {
+	display: inline-block;
+	background: var(--canvas-alt);
+	color: var(--accent);
+	font-family: "SF Mono", ui-monospace, "Cascadia Code", monospace;
+	font-size: 12px;
+	padding: 4px 10px;
+	border-radius: 8px;
+	border: 1px solid var(--hairline);
+}
 
-        /* ===== Composition Bar ===== */
-        .composition-container {
-            background: var(--surface-1);
-            border: 1px solid var(--hairline);
-            border-radius: 6px;
-            padding: 20px;
-            margin-top: 24px;
-        }
-        .composition-bar {
-            height: 32px;
-            background: var(--surface-3);
-            border-radius: 4px;
-            display: flex;
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
-        .composition-segment {
-            height: 100%;
-            transition: opacity 0.2s ease;
-            cursor: default;
-        }
-        .composition-segment:hover { opacity: 0.85; }
-        .seg-system { background: var(--seg-system); }
-        .seg-tools { background: var(--seg-tools); }
-        .seg-history { background: var(--seg-history); }
-        .seg-files { background: var(--seg-files); }
-        .seg-summaries { background: var(--seg-summaries); }
+/* File controls */
+.file-controls {
+	display: flex;
+	gap: 12px;
+	margin-bottom: 20px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.file-search {
+	flex: 1;
+	min-width: 220px;
+	height: 44px;
+	padding: 0 20px;
+	border: 1px solid rgba(0,0,0,0.08);
+	border-radius: 22px;
+	background: var(--surface);
+	font: inherit;
+	font-size: 14px;
+	color: var(--ink);
+	outline: none;
+	transition: border-color 0.2s;
+}
+.file-search:focus { border-color: var(--accent); }
+.file-search::placeholder { color: var(--ink-quaternary); }
+.file-filter {
+	height: 44px;
+	padding: 0 16px;
+	border: 1px solid rgba(0,0,0,0.08);
+	border-radius: 22px;
+	background: var(--surface);
+	font: inherit;
+	font-size: 13px;
+	color: var(--ink-secondary);
+	outline: none;
+	cursor: pointer;
+	transition: border-color 0.2s;
+}
+.file-filter:focus { border-color: var(--accent); }
+.file-count { font-size: 13px; color: var(--ink-tertiary); margin-left: auto; }
 
-        .composition-legend {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 8px;
-            font-size: 12px;
-        }
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--ink-muted);
-            font-variant-numeric: tabular-nums;
-        }
-        .dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+/* File grid */
+.file-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+	gap: 12px;
+}
+.file-card {
+	background: var(--surface);
+	border: 1px solid var(--hairline);
+	border-radius: 14px;
+	padding: 16px;
+	transition: border-color 0.2s, box-shadow 0.2s;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+.file-card:hover {
+	border-color: var(--accent);
+	box-shadow: 0 2px 12px rgba(0,102,204,0.08);
+}
+.file-card.hidden { display: none; }
+.file-card-top {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 8px;
+}
+.file-path {
+	font-family: "SF Mono", ui-monospace, "Cascadia Code", monospace;
+	font-size: 12px;
+	color: var(--ink);
+	word-break: break-all;
+	line-height: 1.5;
+}
+.file-weight {
+	font-size: 11px;
+	color: var(--ink-tertiary);
+	white-space: nowrap;
+	font-variant-numeric: tabular-nums;
+	flex-shrink: 0;
+}
+.file-card-bottom {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.op-tag {
+	font-size: 11px;
+	color: var(--ink-tertiary);
+}
+.status-chip {
+	font-size: 10px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	padding: 2px 8px;
+	border-radius: 6px;
+}
+.status-chip.active { background: var(--success-soft); color: #248a3d; }
+.status-chip.stale { background: var(--warning-soft); color: #b87503; }
+.status-chip.legacy { background: var(--danger-soft); color: #cc3a30; }
 
-        /* ===== Sections ===== */
-        h2 {
-            font-size: 20px;
-            font-weight: 600;
-            color: var(--ink);
-            margin: 48px 0 16px;
-            letter-spacing: -0.3px;
-        }
-        h3 {
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--ink-subtle);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 12px;
-        }
+.file-bar {
+	height: 3px;
+	background: rgba(0,0,0,0.06);
+	border-radius: 2px;
+	overflow: hidden;
+}
+.file-bar-fill {
+	height: 100%;
+	background: var(--accent);
+	border-radius: 2px;
+	transition: width 0.3s ease;
+}
 
-        /* ===== Insights (shadcn-style cards) ===== */
-        .insight-card {
-            background: var(--surface-1);
-            border: 1px solid var(--hairline);
-            border-left: 3px solid var(--accent);
-            border-radius: 6px;
-            margin-bottom: 8px;
-            overflow: hidden;
-        }
-        .insight-card.critical { border-left-color: var(--danger); background: linear-gradient(90deg, var(--danger-soft) 0%, var(--surface-1) 100%); }
-        .insight-card.warning { border-left-color: var(--warning); background: linear-gradient(90deg, var(--warning-soft) 0%, var(--surface-1) 100%); }
-        .insight-card.info { border-left-color: var(--accent); }
+.empty-state {
+	text-align: center;
+	padding: 60px 20px;
+	color: var(--ink-tertiary);
+	font-size: 15px;
+	grid-column: 1 / -1;
+}
 
-        .insight-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 16px;
-            cursor: pointer;
-            user-select: none;
-            background: none;
-            border: none;
-            width: 100%;
-            text-align: left;
-            color: inherit;
-            font: inherit;
-        }
-        .insight-header:hover { background: var(--surface-2); }
-        .insight-chevron {
-            width: 16px;
-            height: 16px;
-            transition: transform 0.2s ease;
-            color: var(--ink-subtle);
-            flex-shrink: 0;
-        }
-        .insight-card.collapsed .insight-chevron { transform: rotate(-90deg); }
-        .insight-severity {
-            font-size: 10px;
-            font-weight: 700;
-            padding: 3px 8px;
-            border-radius: 3px;
-            background: var(--surface-3);
-            color: var(--ink-muted);
-            letter-spacing: 0.5px;
-            flex-shrink: 0;
-        }
-        .insight-card.critical .insight-severity { color: var(--danger); }
-        .insight-card.warning .insight-severity { color: var(--warning); }
-        .insight-card.info .insight-severity { color: var(--accent); }
-        .insight-title { font-weight: 600; color: var(--ink); font-size: 14px; }
-        .insight-body {
-            padding: 0 16px 14px 44px;
-            color: var(--ink-muted);
-            font-size: 13px;
-            line-height: 1.6;
-        }
-        .insight-card.collapsed .insight-body { display: none; }
-        .insight-command {
-            margin-top: 8px;
-            font-size: 12px;
-            color: var(--ink-subtle);
-        }
-        .insight-command code {
-            background: var(--surface-3);
-            color: var(--accent-hover);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-            font-size: 12px;
-        }
+/* Live status badge */
+.live-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 12px;
+	border-radius: 20px;
+	font-size: 11px;
+	font-weight: 500;
+	background: var(--success-soft);
+	color: #248a3d;
+	margin-bottom: 20px;
+}
+.live-badge .dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--success);
+	animation: pulse 2s infinite;
+}
+@keyframes pulse {
+	0%, 100% { opacity: 1; }
+	50% { opacity: 0.4; }
+}
 
-        /* ===== File Controls ===== */
-        .file-controls {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
-        .file-search, .file-filter {
-            background: var(--surface-1);
-            border: 1px solid var(--hairline);
-            border-radius: 6px;
-            padding: 8px 12px;
-            color: var(--ink);
-            font: inherit;
-            font-size: 13px;
-            outline: none;
-            transition: border-color 0.15s ease;
-        }
-        .file-search:focus, .file-filter:focus { border-color: var(--accent); }
-        .file-search { flex: 1; min-width: 200px; }
-        .file-search::placeholder { color: var(--ink-tertiary); }
-        .file-filter { cursor: pointer; }
-        .file-count { color: var(--ink-subtle); font-size: 12px; padding: 8px 0; align-self: center; }
+/* Usage ring */
+.usage-container {
+	display: flex;
+	gap: 24px;
+	align-items: center;
+	margin-bottom: 24px;
+}
+.usage-ring {
+	width: 80px;
+	height: 80px;
+	border-radius: 50%;
+	position: relative;
+	flex-shrink: 0;
+}
+.usage-ring svg { transform: rotate(-90deg); }
+.usage-ring .bg { fill: none; stroke: rgba(0,0,0,0.06); stroke-width: 6; }
+.usage-ring .fg {
+	fill: none;
+	stroke: var(--accent);
+	stroke-width: 6;
+	stroke-linecap: round;
+	transition: stroke-dashoffset 0.6s ease;
+}
+.usage-ring.critical .fg { stroke: var(--danger); }
+.usage-ring.warning .fg { stroke: var(--warning); }
+.usage-label {
+	font-size: 18px;
+	font-weight: 600;
+	letter-spacing: -0.2px;
+}
+.usage-label small {
+	font-size: 13px;
+	font-weight: 400;
+	color: var(--ink-secondary);
+	display: block;
+	margin-top: 2px;
+}
 
-        /* ===== File Grid ===== */
-        .file-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 12px;
-        }
-        .file-card {
-            background: var(--surface-1);
-            border: 1px solid var(--hairline);
-            border-radius: 6px;
-            padding: 14px 16px;
-            transition: border-color 0.15s ease;
-        }
-        .file-card:hover { border-color: var(--hairline-strong); }
-        .file-card.hidden { display: none; }
-        .file-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-        .file-path {
-            font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-            font-size: 12px;
-            color: var(--ink);
-            word-break: break-all;
-            line-height: 1.4;
-        }
-        .file-weight {
-            font-size: 11px;
-            color: var(--ink-subtle);
-            white-space: nowrap;
-            font-variant-numeric: tabular-nums;
-            flex-shrink: 0;
-        }
-        .file-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 11px;
-            color: var(--ink-subtle);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        .op-badge {
-            background: var(--surface-3);
-            padding: 2px 6px;
-            border-radius: 3px;
-            color: var(--ink-muted);
-        }
-        .status-text { font-weight: 700; }
-        .file-card.active { border-left: 3px solid var(--success); }
-        .file-card.active .status-text { color: var(--success); }
-        .file-card.stale { border-left: 3px solid var(--warning); }
-        .file-card.stale .status-text { color: var(--warning); }
-        .file-card.legacy { border-left: 3px solid var(--danger); }
-        .file-card.legacy .status-text { color: var(--danger); }
-
-        .weight-bar {
-            height: 3px;
-            background: var(--surface-3);
-            border-radius: 2px;
-            margin-top: 10px;
-            overflow: hidden;
-        }
-        .weight-fill {
-            height: 100%;
-            background: var(--accent);
-            transition: width 0.3s ease;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 48px 16px;
-            color: var(--ink-subtle);
-            font-size: 13px;
-        }
-    </style>
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 2rem;
-            line-height: 1.5;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        header { margin-bottom: 3rem; border-bottom: 1px solid var(--border); padding-bottom: 2rem; }
-        h1 { font-size: 2rem; margin: 0; color: var(--primary); }
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1.5rem;
-            margin-top: 2rem;
-        }
-        .stat-card {
-            background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-            text-align: center;
-        }
-        .stat-value { font-size: 1.5rem; font-weight: bold; display: block; }
-        .stat-label { color: var(--text-dim); font-size: 0.875rem; text-transform: uppercase; }
-        
-        .composition-container {
-            margin: 2rem 0;
-            background: var(--card-bg);
-            padding: 1.5rem;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-        }
-        .composition-bar {
-            height: 32px;
-            background: #020617;
-            border-radius: 8px;
-            display: flex;
-            overflow: hidden;
-            margin-bottom: 1rem;
-        }
-        .composition-segment { height: 100%; transition: width 0.3s ease; }
-        .seg-system { background: #6366f1; }
-        .seg-tools { background: #ec4899; }
-        .seg-history { background: #a855f7; }
-        .seg-files { background: var(--primary); }
-        .seg-summaries { background: #14b8a6; }
-
-        .composition-legend {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 0.75rem;
-            font-size: 0.8rem;
-            color: var(--text-dim);
-        }
-        .legend-item { display: flex; align-items: center; gap: 0.5rem; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; }
-
-        .insights-section { margin: 2rem 0; }
-        .insight-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-left: 4px solid var(--primary);
-            border-radius: 8px;
-            padding: 1rem 1.25rem;
-            margin-bottom: 0.75rem;
-        }
-        .insight-card.info { border-left-color: var(--primary); }
-        .insight-card.warning { border-left-color: var(--stale); }
-        .insight-card.critical { border-left-color: var(--legacy); }
-        .insight-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
-        .insight-severity {
-            font-size: 0.7rem;
-            font-weight: bold;
-            padding: 2px 8px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.1);
-        }
-        .insight-title { font-weight: 600; }
-        .insight-body { color: var(--text); font-size: 0.9rem; }
-        .insight-command { margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-dim); }
-        .insight-command code {
-            background: rgba(0,0,0,0.3);
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: 'Fira Code', monospace;
-        }
-
-        .file-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 1rem;
-        }
-        .file-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1rem;
-            transition: transform 0.2s ease, border-color 0.2s ease;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .file-card:hover { transform: translateY(-4px); border-color: var(--primary); }
-        .file-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 1rem;
-        }
-        .file-path {
-            font-family: 'Fira Code', monospace;
-            font-size: 0.875rem;
-            word-break: break-all;
-            margin-right: 1rem;
-            color: var(--text);
-        }
-        .file-weight { font-size: 0.75rem; color: var(--text-dim); white-space: nowrap; }
-        .file-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 1rem;
-            font-size: 0.75rem;
-        }
-        .op-badge {
-            background: #0f172a;
-            padding: 2px 6px;
-            border-radius: 4px;
-            color: var(--text-dim);
-        }
-        .turn-badge { color: var(--text-dim); }
-        .status-text { font-weight: bold; text-transform: uppercase; }
-
-        /* Status Colors */
-        .active { border-left: 4px solid var(--active); }
-        .active .status-text { color: var(--active); }
-        .stale { border-left: 4px solid var(--stale); }
-        .stale .status-text { color: var(--stale); }
-        .legacy { border-left: 4px solid var(--legacy); }
-        .legacy .status-text { color: var(--legacy); }
-
-        .weight-bar {
-            height: 4px;
-            background: #020617;
-            border-radius: 2px;
-            margin-top: 1rem;
-            overflow: hidden;
-        }
-        .weight-fill {
-            height: 100%;
-            background: var(--primary);
-            transition: width 0.3s ease;
-        }
-    </style>
+/* Responsive */
+@media (max-width: 700px) {
+	.container { padding: 40px 16px; }
+	h1 { font-size: 32px; }
+	.stats { grid-template-columns: repeat(2, 1fr); }
+	.stat:nth-child(2) { border-right: none; }
+	.stat:nth-child(3), .stat:nth-child(4) { border-top: 1px solid var(--hairline); }
+	.stat-value { font-size: 22px; }
+	.file-grid { grid-template-columns: 1fr; }
+	.legend { grid-template-columns: repeat(2, 1fr); }
+	.composition-card { padding: 20px; }
+	.usage-container { flex-direction: column; align-items: flex-start; }
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Pi Context Profiler</h1>
-            <p style="color: var(--text-dim)">Professional session context window analysis with actionable insights.</p>
+<div class="container">
 
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <span class="stat-value">${composition.total.tokens.toLocaleString()}</span>
-                    <span class="stat-label">Total Tokens</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${composition.files_detail.length}</span>
-                    <span class="stat-label">Files in Context</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${composition.tools.tokens.toLocaleString()}</span>
-                    <span class="stat-label">Tool Tokens</span>
-                </div>
-                <div class="stat-card">
-                    <span class="stat-value">${Math.round((composition.total.tokens / 128000) * 100)}%</span>
-                    <span class="stat-label">Of 128k Window</span>
-                </div>
-            </div>
+<header>
+	<div class="live-badge"><span class="dot"></span>Live</div>
+	<h1>Context Profiler</h1>
+	<p class="subtitle">Session context window breakdown with actionable recommendations</p>
 
-            <div class="composition-container">
-                <h3 style="margin-top: 0; color: var(--text-dim); font-size: 0.9rem; text-transform: uppercase;">Context Composition</h3>
-                <div class="composition-bar">
-                    <div class="composition-segment seg-system" style="width: ${composition.system.percent}%" title="System: ${composition.system.percent}%"></div>
-                    <div class="composition-segment seg-tools" style="width: ${composition.tools.percent}%" title="Tools: ${composition.tools.percent}%"></div>
-                    <div class="composition-segment seg-history" style="width: ${composition.history.percent}%" title="History: ${composition.history.percent}%"></div>
-                    <div class="composition-segment seg-files" style="width: ${composition.files.percent}%" title="Files: ${composition.files.percent}%"></div>
-                    <div class="composition-segment seg-summaries" style="width: ${composition.summaries.percent}%" title="Summaries: ${composition.summaries.percent}%"></div>
-                </div>
-                <div class="composition-legend">
-                    <div class="legend-item"><span class="dot seg-system"></span> System (${composition.system.percent}%)</div>
-                    <div class="legend-item"><span class="dot seg-tools"></span> Tools (${composition.tools.percent}%)</div>
-                    <div class="legend-item"><span class="dot seg-history"></span> History (${composition.history.percent}%)</div>
-                    <div class="legend-item"><span class="dot seg-files"></span> Files (${composition.files.percent}%)</div>
-                    <div class="legend-item"><span class="dot seg-summaries"></span> Summaries (${composition.summaries.percent}%)</div>
-                </div>
-            </div>
-        </header>
+	<div class="stats">
+		<div class="stat">
+			<span class="stat-value">${total.toLocaleString()}</span>
+			<span class="stat-label">Total Tokens</span>
+		</div>
+		<div class="stat">
+			<span class="stat-value">${composition.files_detail.length}</span>
+			<span class="stat-label">Files</span>
+		</div>
+		<div class="stat">
+			<span class="stat-value">${insights.filter(i => i.severity === "warning" || i.severity === "critical").length}</span>
+			<span class="stat-label">Alerts</span>
+		</div>
+		<div class="stat">
+			<span class="stat-value">${usagePercent}<span style="font-size:14px;color:var(--ink-tertiary)">%</span></span>
+			<span class="stat-label">of 128k Window</span>
+		</div>
+	</div>
 
-        <section class="insights-section">
-            <h2>Actionable Insights</h2>
-            ${insightCards}
-        </section>
+	<div class="usage-container">
+		<div class="usage-ring${usagePercent > 80 ? " critical" : usagePercent > 60 ? " warning" : ""}">
+			<svg width="80" height="80" viewBox="0 0 80 80">
+				<circle class="bg" cx="40" cy="40" r="34"/>
+				<circle class="fg" cx="40" cy="40" r="34"
+					stroke-dasharray="${2 * Math.PI * 34}"
+					stroke-dashoffset="${2 * Math.PI * 34 * (1 - usagePercent / 100)}"/>
+			</svg>
+		</div>
+		<div class="usage-label">
+			${usagePercent}% of 128k window
+			<small>${usagePercent > 80 ? "Compaction recommended" : usagePercent > 60 ? "Monitor usage" : "Healthy"}</small>
+		</div>
+	</div>
 
-        <section>
-            <h2>Files in Context</h2>
-            <div class="file-controls">
-                <input type="text" class="file-search" id="fileSearch" placeholder="Search files by path..." aria-label="Search files" />
-                <select class="file-filter" id="fileFilter" aria-label="Filter by status">
-                    <option value="all">All statuses</option>
-                    <option value="active">Active</option>
-                    <option value="stale">Stale</option>
-                    <option value="legacy">Legacy</option>
-                </select>
-                <span class="file-count" id="fileCount"></span>
-            </div>
-            <div class="file-grid" id="fileGrid">
-                ${fileCards}
-            </div>
-            <div class="empty-state" id="emptyState" style="display: none;">No files match your search.</div>
-        </section>
-    </div>
+	<div class="composition-card">
+		<h3>Context Composition</h3>
+		<div class="bar">
+			${ReportGenerator.seg("seg-system", composition.system.percent)}
+			${ReportGenerator.seg("seg-tools", composition.tools.percent)}
+			${ReportGenerator.seg("seg-history", composition.history.percent)}
+			${ReportGenerator.seg("seg-files", composition.files.percent)}
+			${ReportGenerator.seg("seg-summaries", composition.summaries.percent)}
+		</div>
+		<div class="legend">
+			<div class="legend-item"><span class="legend-dot sys"></span> System &mdash; ${composition.system.tokens.toLocaleString()} (${composition.system.percent}%)</div>
+			<div class="legend-item"><span class="legend-dot tools"></span> Tools &mdash; ${composition.tools.tokens.toLocaleString()} (${composition.tools.percent}%)</div>
+			<div class="legend-item"><span class="legend-dot hist"></span> History &mdash; ${composition.history.tokens.toLocaleString()} (${composition.history.percent}%)</div>
+			<div class="legend-item"><span class="legend-dot files"></span> Files &mdash; ${composition.files.tokens.toLocaleString()} (${composition.files.percent}%)</div>
+			<div class="legend-item"><span class="legend-dot summ"></span> Summaries &mdash; ${composition.summaries.tokens.toLocaleString()} (${composition.summaries.percent}%)</div>
+		</div>
+	</div>
+</header>
 
-    <script>
-        (function() {
-            // ===== Live update via Server-Sent Events =====
-            // Token is injected into the script via a meta tag (set by the server).
-            // Connect to /events?token=...; when the server pushes a new html payload, replace the document.
-            try {
-                var tokenMeta = document.querySelector('meta[name="context-map-token"]');
-                var token = tokenMeta ? tokenMeta.getAttribute('content') : '';
-                var evtSource = new EventSource('/events?token=' + encodeURIComponent(token));
-                evtSource.onmessage = function(e) {
-                    try {
-                        var payload = JSON.parse(e.data);
-                        if (payload.html) {
-                            // Replace the document body with the new HTML
-                            var parser = new DOMParser();
-                            var newDoc = parser.parseFromString(payload.html, 'text/html');
-                            document.documentElement.replaceChild(
-                                document.importNode(newDoc.documentElement, true),
-                                document.documentElement
-                            );
-                        }
-                    } catch (err) {
-                        console.warn('Failed to apply live update:', err);
-                    }
-                };
-                evtSource.onerror = function() {
-                    // Silently close on error; user can refresh the page to reconnect
-                    evtSource.close();
-                };
-            } catch (err) {
-                // EventSource not available; fall back to manual refresh
-            }
+<section>
+	<h2>Insights</h2>
+	${insightCards || `<p style="color:var(--ink-tertiary);font-size:15px;">No insights available yet &mdash; the context composition is balanced.</p>`}
+</section>
 
-            // ===== Insight collapse/expand =====
-            document.querySelectorAll('.insight-header[data-toggle]').forEach(function(btn) {
-                btn.addEventListener('click', function() {
-                    var card = btn.closest('.insight-card');
-                    var isCollapsed = card.classList.toggle('collapsed');
-                    btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
-                });
-            });
+<section>
+	<h2>Files <span style="font-size:14px;font-weight:400;color:var(--ink-tertiary);letter-spacing:0;">(${composition.files_detail.length})</span></h2>
+	<div class="file-controls">
+		<input type="text" class="file-search" id="fileSearch" placeholder="Search files" aria-label="Search files">
+		<select class="file-filter" id="fileFilter" aria-label="Filter by status">
+			<option value="all">All</option>
+			<option value="active">Active</option>
+			<option value="stale">Stale</option>
+			<option value="legacy">Legacy</option>
+		</select>
+		<span class="file-count" id="fileCount"></span>
+	</div>
+	<div class="file-grid" id="fileGrid">
+		${fileCards || '<div class="empty-state">No files tracked in the current session context.</div>'}
+	</div>
+	<div class="empty-state" id="emptyState" style="display:none">No files match your current filters.</div>
+</section>
 
-            // ===== File search & filter =====
-            var search = document.getElementById('fileSearch');
-            var filter = document.getElementById('fileFilter');
-            var grid = document.getElementById('fileGrid');
-            var count = document.getElementById('fileCount');
-            var empty = document.getElementById('emptyState');
-            var cards = grid ? Array.prototype.slice.call(grid.querySelectorAll('.file-card')) : [];
-            var total = cards.length;
+</div>
 
-            function applyFilters() {
-                var query = (search.value || '').toLowerCase();
-                var status = filter.value;
-                var visible = 0;
-                cards.forEach(function(card) {
-                    var path = (card.getAttribute('data-path') || '').toLowerCase();
-                    var cardStatus = card.getAttribute('data-status') || '';
-                    var matchQuery = !query || path.indexOf(query) !== -1;
-                    var matchStatus = status === 'all' || cardStatus === status;
-                    if (matchQuery && matchStatus) {
-                        card.classList.remove('hidden');
-                        visible++;
-                    } else {
-                        card.classList.add('hidden');
-                    }
-                });
-                count.textContent = visible === total ? total + ' files' : visible + ' of ' + total + ' files';
-                empty.style.display = visible === 0 ? 'block' : 'none';
-            }
+<script>
+(function() {
+	var search = document.getElementById('fileSearch');
+	var filter = document.getElementById('fileFilter');
+	var grid = document.getElementById('fileGrid');
+	var count = document.getElementById('fileCount');
+	var empty = document.getElementById('emptyState');
+	var cards = grid ? Array.from(grid.querySelectorAll('.file-card')) : [];
+	var total = cards.length;
 
-            if (search) search.addEventListener('input', applyFilters);
-            if (filter) filter.addEventListener('change', applyFilters);
-            applyFilters();
-        })();
-    </script>
+	function update() {
+		var q = (search.value || '').toLowerCase();
+		var s = filter.value;
+		var v = 0;
+		for (var i = 0; i < cards.length; i++) {
+			var c = cards[i];
+			var p = (c.getAttribute('data-path') || '').toLowerCase();
+			var st = c.getAttribute('data-status') || '';
+			var mq = !q || p.indexOf(q) !== -1;
+			var ms = s === 'all' || st === s;
+			if (mq && ms) { c.classList.remove('hidden'); v++; }
+			else { c.classList.add('hidden'); }
+		}
+		count.textContent = v === total ? total + ' files' : v + ' of ' + total;
+		empty.style.display = v === 0 ? '' : 'none';
+	}
+	if (search) search.addEventListener('input', update);
+	if (filter) filter.addEventListener('change', update);
+	update();
+
+	// Insight toggles
+	var btns = document.querySelectorAll('.insight-header');
+	for (var j = 0; j < btns.length; j++) {
+		btns[j].addEventListener('click', function() {
+			var card = this.closest('.insight-card');
+			var was = card.classList.toggle('collapsed');
+			this.setAttribute('aria-expanded', was ? 'false' : 'true');
+		});
+	}
+
+	// Live SSE
+	try {
+		var token = (document.querySelector('meta[name="context-map-token"]') || {}).getAttribute('content') || '';
+		var es = new EventSource('/events?token=' + encodeURIComponent(token));
+		es.onmessage = function(e) {
+			try {
+				var p = JSON.parse(e.data);
+				if (p.html) {
+					var d = new DOMParser().parseFromString(p.html, 'text/html');
+					document.replaceChild(document.importNode(d.documentElement, true), document.documentElement);
+				}
+			} catch(_) {}
+		};
+		es.onerror = function() { es.close(); };
+	} catch(_) {}
+})();
+</script>
+
 </body>
-</html>
-`;
+</html>`;
     }
     static writeReport(html) {
         const reportDir = (0, node_path_1.join)((0, node_os_1.homedir)(), ".pi", "context-map");
@@ -692,29 +621,28 @@ class ReportGenerator {
         (0, node_fs_1.writeFileSync)(reportPath, html, "utf8");
         return reportPath;
     }
+    static seg(cls, pct) {
+        return pct > 0
+            ? `<div class="bar-seg ${cls}" style="width:${pct}%"></div>`
+            : "";
+    }
     static getOpIcon(type) {
         switch (type) {
             case "read":
-                return "READ";
+                return "Read";
             case "write":
-                return "WRITE";
+                return "Write";
             case "edit":
-                return "EDIT";
+                return "Edit";
             case "delete":
-                return "DELETE";
+                return "Delete";
             default:
-                return "FILE";
+                return "Access";
         }
     }
     static escapeHtml(text) {
-        const map = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#039;",
-        };
-        return text.replace(/[&<>"']/g, (m) => map[m]);
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
     }
 }
 exports.ReportGenerator = ReportGenerator;

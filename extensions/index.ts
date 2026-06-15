@@ -194,10 +194,14 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		liveServer.stop();
 	});
 
-	if (serverUrl) {
-		console.log(`[pi-context-map] Live server running at ${serverUrl}`);
-		console.log(
-			`[pi-context-map] Run /context-map to generate a report, or /context-map stop to terminate.`,
-		);
-	}
+	// Kill server when process exits
+	process.on("exit", () => liveServer.stop());
+	process.on("SIGINT", () => {
+		liveServer.stop();
+		process.exit(0);
+	});
+	process.on("SIGTERM", () => {
+		liveServer.stop();
+		process.exit(0);
+	});
 }
