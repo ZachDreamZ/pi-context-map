@@ -50,7 +50,7 @@ export interface ContextComposition {
 export class ContextAnalyzer {
 	public analyzeByType(
 		messages: any[],
-		currentTurn: number,
+		_currentTurn: number,
 		systemPrompt?: string,
 	): ContextComposition {
 		const fileRegistry = new Map<string, FileContext>();
@@ -243,9 +243,30 @@ export class ContextAnalyzer {
 		const totalTokens =
 			systemTokens + toolTokens + historyTokens + fileTokens + summaryTokens;
 
-		const mk = (tokens: number): ContextSlice => ({
+		// Calculate exact percentages, then use largest-remainder to ensure sum = 100
+		const raw = [
+			{ key: "system", tokens: systemTokens },
+			{ key: "tools", tokens: toolTokens },
+			{ key: "history", tokens: historyTokens },
+			{ key: "files", tokens: fileTokens },
+			{ key: "summaries", tokens: summaryTokens },
+		];
+		const floored = raw.map((r) => ({
+			...r,
+			pct: totalTokens > 0 ? Math.floor((r.tokens / totalTokens) * 100) : 0,
+			remainder: totalTokens > 0 ? ((r.tokens / totalTokens) * 100) % 1 : 0,
+		}));
+		let sum = floored.reduce((s, r) => s + r.pct, 0);
+		const sorted = [...floored].sort((a, b) => b.remainder - a.remainder);
+		for (let i = 0; sum < 100 && i < sorted.length; i++) {
+			sorted[i].pct++;
+			sum++;
+		}
+		const pctMap = new Map(floored.map((r) => [r.key, r.pct]));
+
+		const mk = (key: string, tokens: number): ContextSlice => ({
 			tokens: Math.ceil(tokens),
-			percent: totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
+			percent: pctMap.get(key) || 0,
 		});
 
 		const files_detail = Array.from(fileRegistry.values())
@@ -253,19 +274,19 @@ export class ContextAnalyzer {
 			.slice(0, 100);
 
 		return {
-			system: mk(systemTokens),
-			tools: mk(toolTokens),
-			history: mk(historyTokens),
-			files: mk(fileTokens),
-			summaries: mk(summaryTokens),
-			total: mk(totalTokens),
+			system: mk("system", systemTokens),
+			tools: mk("tools", toolTokens),
+			history: mk("history", historyTokens),
+			files: mk("files", fileTokens),
+			summaries: mk("summaries", summaryTokens),
+			total: { tokens: Math.ceil(totalTokens), percent: 100 },
 			files_detail,
 		};
 	}
 
 	/** Backward-compatible wrapper. */
-	public analyze(messages: any[], currentTurn: number): ContextComposition {
-		return this.analyzeByType(messages, currentTurn);
+	public analyze(messages: any[], _currentTurn: number): ContextComposition {
+		return this.analyzeByType(messages, _currentTurn);
 	}
 
 	private extractPath(toolName: string, args: any): string | null {

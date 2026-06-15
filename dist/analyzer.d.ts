@@ -26,9 +26,9 @@ export interface ContextComposition {
     actualPercent?: number | null;
 }
 export declare class ContextAnalyzer {
-    analyzeByType(messages: any[], currentTurn: number, systemPrompt?: string): ContextComposition;
+    analyzeByType(messages: any[], _currentTurn: number, systemPrompt?: string): ContextComposition;
     /** Backward-compatible wrapper. */
-    analyze(messages: any[], currentTurn: number): ContextComposition;
+    analyze(messages: any[], _currentTurn: number): ContextComposition;
     private extractPath;
     private extractPathFromToolResult;
     private getOpType;

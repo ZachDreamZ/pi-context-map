@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.7.3] - 2026-06-15
+### Bug Fixes
+- **Fixed insights context window**: Removed hardcoded "128k" from all insight messages. Now shows actual window size (e.g., "your 200k context window").
+- **Fixed stale file count**: Insight now counts both "legacy" AND "stale" files (all inactive), matching what the files section shows.
+- **Fixed composition bar**: Used largest-remainder method to ensure segment percentages always sum to exactly 100%. No more gaps.
+
 ## [0.7.2] - 2026-06-15
 ### Bug Fixes
 - **Fixed insights context window**: Now uses the actual context window from Pi (e.g., 200k) instead of hardcoded 128k. Critical insight no longer shows wrong percentages.

@@ -19,7 +19,7 @@ exports.ContextAnalyzer = void 0;
  */
 const token_counter_1 = require("./token-counter");
 class ContextAnalyzer {
-    analyzeByType(messages, currentTurn, systemPrompt) {
+    analyzeByType(messages, _currentTurn, systemPrompt) {
         const fileRegistry = new Map();
         let systemTokens = 0;
         let toolTokens = 0;
@@ -185,26 +185,46 @@ class ContextAnalyzer {
             historyTokens += token_counter_1.TokenCounter.countMessage(msg);
         }
         const totalTokens = systemTokens + toolTokens + historyTokens + fileTokens + summaryTokens;
-        const mk = (tokens) => ({
+        // Calculate exact percentages, then use largest-remainder to ensure sum = 100
+        const raw = [
+            { key: "system", tokens: systemTokens },
+            { key: "tools", tokens: toolTokens },
+            { key: "history", tokens: historyTokens },
+            { key: "files", tokens: fileTokens },
+            { key: "summaries", tokens: summaryTokens },
+        ];
+        const floored = raw.map((r) => ({
+            ...r,
+            pct: totalTokens > 0 ? Math.floor((r.tokens / totalTokens) * 100) : 0,
+            remainder: totalTokens > 0 ? ((r.tokens / totalTokens) * 100) % 1 : 0,
+        }));
+        let sum = floored.reduce((s, r) => s + r.pct, 0);
+        const sorted = [...floored].sort((a, b) => b.remainder - a.remainder);
+        for (let i = 0; sum < 100 && i < sorted.length; i++) {
+            sorted[i].pct++;
+            sum++;
+        }
+        const pctMap = new Map(floored.map((r) => [r.key, r.pct]));
+        const mk = (key, tokens) => ({
             tokens: Math.ceil(tokens),
-            percent: totalTokens > 0 ? Math.round((tokens / totalTokens) * 100) : 0,
+            percent: pctMap.get(key) || 0,
         });
         const files_detail = Array.from(fileRegistry.values())
             .sort((a, b) => b.weight - a.weight)
             .slice(0, 100);
         return {
-            system: mk(systemTokens),
-            tools: mk(toolTokens),
-            history: mk(historyTokens),
-            files: mk(fileTokens),
-            summaries: mk(summaryTokens),
-            total: mk(totalTokens),
+            system: mk("system", systemTokens),
+            tools: mk("tools", toolTokens),
+            history: mk("history", historyTokens),
+            files: mk("files", fileTokens),
+            summaries: mk("summaries", summaryTokens),
+            total: { tokens: Math.ceil(totalTokens), percent: 100 },
             files_detail,
         };
     }
     /** Backward-compatible wrapper. */
-    analyze(messages, currentTurn) {
-        return this.analyzeByType(messages, currentTurn);
+    analyze(messages, _currentTurn) {
+        return this.analyzeByType(messages, _currentTurn);
     }
     extractPath(toolName, args) {
         if (!args || typeof args !== "object")

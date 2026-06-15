@@ -37,17 +37,17 @@ export class InsightEngine {
 			});
 		}
 
-		// Rule 2: Stale files
+		// Rule 2: Stale/legacy files
 		const staleFiles = composition.files_detail.filter(
-			(f) => f.status === "legacy",
+			(f) => f.status === "legacy" || f.status === "stale",
 		);
 		if (staleFiles.length > 0) {
 			const totalStaleTokens = staleFiles.reduce((sum, f) => sum + f.weight, 0);
 			insights.push({
 				id: "stale-files",
 				severity: staleFiles.length > 5 ? "warning" : "info",
-				title: `${staleFiles.length} stale file(s) in context`,
-				message: `Files accessed more than 10 turns ago are still in context (~${totalStaleTokens.toLocaleString()} tokens). They are unlikely to be needed.`,
+				title: `${staleFiles.length} inactive file(s) in context`,
+				message: `${staleFiles.length} file(s) accessed earlier in the session are still in context (~${totalStaleTokens.toLocaleString()} tokens). They are unlikely to be needed.`,
 			});
 		}
 
@@ -58,7 +58,7 @@ export class InsightEngine {
 				id: "high-usage",
 				severity: "critical",
 				title: "Context window nearly full",
-				message: `You are at ${usagePercent}% of a typical 128k context window. Compaction or summarization is strongly recommended.`,
+				message: `You are at ${usagePercent}% of your ${(windowSize / 1000).toFixed(0)}k context window. Compaction or summarization is strongly recommended.`,
 				command: "/ultra-compact",
 			});
 		} else if (usagePercent > 60) {
@@ -66,7 +66,7 @@ export class InsightEngine {
 				id: "moderate-usage",
 				severity: "warning",
 				title: "Context usage is high",
-				message: `You are at ${usagePercent}% of a typical 128k context window. Plan to compact before adding more files.`,
+				message: `You are at ${usagePercent}% of your ${(windowSize / 1000).toFixed(0)}k context window. Plan to compact before adding more files.`,
 			});
 		}
 
@@ -107,7 +107,7 @@ export class InsightEngine {
 				id: "healthy-context",
 				severity: "info",
 				title: "Context looks healthy",
-				message: `Your context composition is balanced and under ${usagePercent}% of a typical window.`,
+				message: `Your context composition is balanced and under ${usagePercent}% of your ${(windowSize / 1000).toFixed(0)}k window.`,
 			});
 		}
 
