@@ -297,11 +297,23 @@ h2:first-of-type { margin-top: 48px; }
 	align-items: center;
 	flex-wrap: wrap;
 }
-.file-search {
+.file-search-wrap {
 	flex: 1;
 	min-width: 220px;
+	position: relative;
+}
+.file-search-icon {
+	position: absolute;
+	left: 16px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: var(--ink-quaternary);
+	pointer-events: none;
+}
+.file-search {
+	width: 100%;
 	height: 44px;
-	padding: 0 20px;
+	padding: 0 20px 0 40px;
 	border: 1px solid rgba(0,0,0,0.08);
 	border-radius: 22px;
 	background: var(--surface);
@@ -564,7 +576,10 @@ h2:first-of-type { margin-top: 48px; }
 <section>
 	<h2>Files <span style="font-size:14px;font-weight:400;color:var(--ink-tertiary);letter-spacing:0;">(${composition.files_detail.length})</span></h2>
 	<div class="file-controls">
-		<input type="text" class="file-search" id="fileSearch" placeholder="Search files" aria-label="Search files">
+		<div class="file-search-wrap">
+		<svg class="file-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+		<input type="text" class="file-search" id="fileSearch" placeholder="Search files..." aria-label="Search files">
+		</div>
 		<select class="file-filter" id="fileFilter" aria-label="Filter by status">
 			<option value="all">All</option>
 			<option value="active">Active</option>
@@ -583,17 +598,19 @@ h2:first-of-type { margin-top: 48px; }
 
 <script>
 (function() {
-	var search = document.getElementById('fileSearch');
-	var filter = document.getElementById('fileFilter');
-	var grid = document.getElementById('fileGrid');
-	var count = document.getElementById('fileCount');
-	var empty = document.getElementById('emptyState');
-	var cards = grid ? Array.from(grid.querySelectorAll('.file-card')) : [];
-	var total = cards.length;
+	function getCards() {
+		var grid = document.getElementById('fileGrid');
+		return grid ? Array.from(grid.querySelectorAll('.file-card')) : [];
+	}
 
 	function update() {
-		var q = (search.value || '').toLowerCase();
-		var s = filter.value;
+		var search = document.getElementById('fileSearch');
+		var filter = document.getElementById('fileFilter');
+		var count = document.getElementById('fileCount');
+		var empty = document.getElementById('emptyState');
+		var cards = getCards();
+		var q = (search ? search.value : '').toLowerCase();
+		var s = filter ? filter.value : 'all';
 		var v = 0;
 		for (var i = 0; i < cards.length; i++) {
 			var c = cards[i];
@@ -604,11 +621,17 @@ h2:first-of-type { margin-top: 48px; }
 			if (mq && ms) { c.classList.remove('hidden'); v++; }
 			else { c.classList.add('hidden'); }
 		}
-		count.textContent = v === total ? total + ' files' : v + ' of ' + total;
-		empty.style.display = v === 0 ? '' : 'none';
+		if (count) count.textContent = v + ' of ' + cards.length;
+		if (empty) empty.style.display = v === 0 ? '' : 'none';
 	}
-	if (search) search.addEventListener('input', update);
-	if (filter) filter.addEventListener('change', update);
+
+	// Event delegation — survives SSE body replacement
+	document.addEventListener('input', function(e) {
+		if (e.target.id === 'fileSearch') update();
+	});
+	document.addEventListener('change', function(e) {
+		if (e.target.id === 'fileFilter') update();
+	});
 	update();
 
 	// Theme toggle
@@ -665,14 +688,7 @@ h2:first-of-type { margin-top: 48px; }
 					}
 					// Restore theme after body replacement
 					applyTheme(currentTheme);
-					// Re-bind file search/filter (direct listeners, not delegated)
-					var ns = document.getElementById('fileSearch');
-					var nf = document.getElementById('fileFilter');
-					if (ns) ns.addEventListener('input', update);
-					if (nf) nf.addEventListener('change', update);
-					// Re-query cards after body replacement
-					cards = Array.from(document.getElementById('fileGrid').querySelectorAll('.file-card'));
-					total = cards.length;
+					// Search/filter use event delegation — no re-binding needed
 					update();
 				}
 			} catch(_) {}

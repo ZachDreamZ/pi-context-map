@@ -163,7 +163,7 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			}
 		}
 
-		const insights = InsightEngine.generate(composition);
+		const insights = InsightEngine.generate(composition, contextWindow);
 		const html = ReportGenerator.generateHTML(
 			composition,
 			insights,

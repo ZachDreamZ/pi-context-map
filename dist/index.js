@@ -170,7 +170,7 @@ async function piContextMap(pi) {
                 composition.total.tokens = total;
             }
         }
-        const insights = insights_1.InsightEngine.generate(composition);
+        const insights = insights_1.InsightEngine.generate(composition, contextWindow);
         const html = generator_1.ReportGenerator.generateHTML(composition, insights, contextWindow, actualTokens);
         try {
             const dir = path.dirname(currentReportPath);

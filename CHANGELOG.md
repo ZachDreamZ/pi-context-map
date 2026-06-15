@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2] - 2026-06-15
+### Bug Fixes
+- **Fixed insights context window**: Now uses the actual context window from Pi (e.g., 200k) instead of hardcoded 128k. Critical insight no longer shows wrong percentages.
+- **Fixed file filter**: Changed from direct `addEventListener` to event delegation (`document.addEventListener('change', ...)`). Filter now works after SSE body replacement.
+- **Fixed file search**: Changed to event delegation (`document.addEventListener('input', ...)`). Search now works in real-time and survives SSE body replacement.
+- **Added search icon**: SVG magnifying glass icon inside the search input for better UX.
+
 ## [0.7.1] - 2026-06-15
 ### Bug Fixes
 - **Fixed insights dropdown**: Changed from direct `addEventListener` to event delegation (`document.addEventListener('click', ...)` with `e.target.closest('.insight-header')`). The dropdown now works after SSE body replacement.

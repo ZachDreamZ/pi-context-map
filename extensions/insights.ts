@@ -14,15 +14,17 @@ export interface Insight {
 	command?: string; // Suggested slash command
 }
 
-const TYPICAL_WINDOW = 128_000; // Default context window size (Claude Sonnet/Opus)
-
 export class InsightEngine {
 	/**
 	 * Generate a list of insights based on the composition.
 	 */
-	public static generate(composition: ContextComposition): Insight[] {
+	public static generate(
+		composition: ContextComposition,
+		contextWindow?: number,
+	): Insight[] {
 		const insights: Insight[] = [];
-		const { system, tools, history, files, summaries, total } = composition;
+		const { system, tools, files, summaries, total } = composition;
+		const windowSize = contextWindow || 128_000;
 
 		// Rule 1: Tool bloat
 		if (tools.percent > 40) {
@@ -50,7 +52,7 @@ export class InsightEngine {
 		}
 
 		// Rule 3: High overall usage
-		const usagePercent = Math.round((total.tokens / TYPICAL_WINDOW) * 100);
+		const usagePercent = Math.round((total.tokens / windowSize) * 100);
 		if (usagePercent > 80) {
 			insights.push({
 				id: "high-usage",
