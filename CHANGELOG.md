@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.5.0] - 2026-06-15
+### Features
+- **Dark mode toggle**: Light/dark theme switcher in the report header. Preference saved to localStorage and restored on next load. Theme persists across SSE live updates.
+- **Dynamic context window**: Replaced hardcoded 128k with actual context window size from Pi system via `ctx.getContextUsage()`. Now accurately reflects your model's real context limit (200k, 128k, etc.).
+
 ## [0.4.4] - 2026-06-15
 ### Bug Fixes
 - **Fixed SSE rendering**: Changed `document.replaceChild(document.documentElement)` to `document.body.innerHTML` replacement. CSS and JavaScript no longer render as visible text on the page.

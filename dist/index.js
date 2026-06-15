@@ -53,10 +53,21 @@ async function piContextMap(pi) {
     // session messages in Pi. (pi as any).session?.messages does NOT exist.
     let sessionMessages = [];
     let currentTurn = 0;
-    // Capture messages before each LLM call
-    pi.on("context", (event) => {
+    let contextWindow = 128_000; // fallback, updated from Pi system
+    // Capture messages and context info before each LLM call
+    pi.on("context", (event, ctx) => {
         if (event?.messages && Array.isArray(event.messages)) {
             sessionMessages = event.messages;
+        }
+        // Fetch actual context window from Pi system
+        try {
+            const usage = ctx?.getContextUsage?.();
+            if (usage?.contextWindow && usage.contextWindow > 0) {
+                contextWindow = usage.contextWindow;
+            }
+        }
+        catch {
+            // Ignore — keep fallback
         }
     });
     // Track turns
@@ -67,7 +78,7 @@ async function piContextMap(pi) {
         const messages = sessionMessages.length > 0 ? sessionMessages : [];
         const composition = analyzer.analyzeByType(messages, currentTurn);
         const insights = insights_1.InsightEngine.generate(composition);
-        const html = generator_1.ReportGenerator.generateHTML(composition, insights);
+        const html = generator_1.ReportGenerator.generateHTML(composition, insights, contextWindow);
         // Write to disk
         try {
             const fs = await import("node:fs");
@@ -128,13 +139,13 @@ async function piContextMap(pi) {
             try {
                 const { composition, insights } = await runAnalysis();
                 const usagePercent = composition.total.tokens > 0
-                    ? Math.round((composition.total.tokens / 128_000) * 100)
+                    ? Math.round((composition.total.tokens / contextWindow) * 100)
                     : 0;
                 const summary = `Context: ${composition.total.tokens.toLocaleString()} tokens total. ` +
                     `System ${composition.system.percent}%, Tools ${composition.tools.percent}%, ` +
                     `History ${composition.history.percent}%, Files ${composition.files.percent}%, ` +
                     `Summaries ${composition.summaries.percent}%. ` +
-                    `Usage: ${usagePercent}% of typical 128k window. ` +
+                    `Usage: ${usagePercent}% of ${(contextWindow / 1000).toFixed(0)}k window. ` +
                     `${insights.length} insight(s) generated.`;
                 return {
                     type: "text",

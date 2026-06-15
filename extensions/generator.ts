@@ -14,9 +14,10 @@ export class ReportGenerator {
 	public static generateHTML(
 		composition: ContextComposition,
 		insights: Insight[],
+		contextWindow: number = 128_000,
 	): string {
 		const total = composition.total.tokens;
-		const usagePercent = total > 0 ? Math.round((total / 128_000) * 100) : 0;
+		const usagePercent = total > 0 ? Math.round((total / contextWindow) * 100) : 0;
 
 		const fileCards = composition.files_detail
 			.map(
@@ -89,6 +90,26 @@ export class ReportGenerator {
 	--seg-history: #bf5af2;
 	--seg-files: #007aff;
 	--seg-summaries: #34c759;
+}
+[data-theme="dark"] {
+	--canvas: #0a0a0b;
+	--canvas-alt: #141415;
+	--surface: #1a1a1c;
+	--hairline: #2c2c2e;
+	--hairline-soft: rgba(255,255,255,0.06);
+	--ink: #f5f5f7;
+	--ink-secondary: #a1a1a6;
+	--ink-tertiary: #6e6e73;
+	--ink-quaternary: #48484a;
+	--accent: #2997ff;
+	--accent-hover: #40a9ff;
+	--accent-soft: rgba(41,151,255,0.12);
+	--success: #30d158;
+	--success-soft: rgba(48,209,88,0.12);
+	--warning: #ff9f0a;
+	--warning-soft: rgba(255,159,10,0.12);
+	--danger: #ff453a;
+	--danger-soft: rgba(255,69,58,0.12);
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -482,8 +503,15 @@ h2:first-of-type { margin-top: 48px; }
 <div class="container">
 
 <header>
-	<div class="live-badge"><span class="dot"></span>Live</div>
-	<h1>Context Profiler</h1>
+			<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+				<div class="live-badge"><span class="dot"></span>Live</div>
+				<button id="themeToggle" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:1px solid var(--hairline);border-radius:20px;background:var(--surface);color:var(--ink-secondary);font:inherit;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.2s;white-space:nowrap;" aria-label="Toggle theme">
+					<svg id="themeIconSun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+					<svg id="themeIconMoon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+					<span id="themeLabel">Dark</span>
+				</button>
+			</div>
+			<h1>Context Profiler</h1>
 	<p class="subtitle">Session context window breakdown with actionable recommendations</p>
 
 	<div class="stats">
@@ -500,8 +528,8 @@ h2:first-of-type { margin-top: 48px; }
 			<span class="stat-label">Alerts</span>
 		</div>
 		<div class="stat">
-			<span class="stat-value">${usagePercent}<span style="font-size:14px;color:var(--ink-tertiary)">%</span></span>
-			<span class="stat-label">of 128k Window</span>
+			<span class="stat-value">${(contextWindow / 1000).toFixed(0)}k</span>
+			<span class="stat-label">Context Window</span>
 		</div>
 	</div>
 
@@ -515,7 +543,7 @@ h2:first-of-type { margin-top: 48px; }
 			</svg>
 		</div>
 		<div class="usage-label">
-			${usagePercent}% of 128k window
+			${usagePercent}% of ${(contextWindow / 1000).toFixed(0)}k window
 			<small>${usagePercent > 80 ? "Compaction recommended" : usagePercent > 60 ? "Monitor usage" : "Healthy"}</small>
 		</div>
 	</div>
@@ -594,6 +622,25 @@ h2:first-of-type { margin-top: 48px; }
 	if (filter) filter.addEventListener('change', update);
 	update();
 
+	// Theme toggle
+	var toggle = document.getElementById('themeToggle');
+	var label = document.getElementById('themeLabel');
+	var sunIcon = document.getElementById('themeIconSun');
+	var moonIcon = document.getElementById('themeIconMoon');
+	function applyTheme(t) {
+		document.documentElement.setAttribute('data-theme', t);
+		localStorage.setItem('context-map-theme', t);
+		if (label) label.textContent = t === 'dark' ? 'Light' : 'Dark';
+		if (sunIcon) sunIcon.style.display = t === 'dark' ? '' : 'none';
+		if (moonIcon) moonIcon.style.display = t === 'dark' ? 'none' : '';
+	}
+	var saved = localStorage.getItem('context-map-theme');
+	applyTheme(saved || 'light');
+	if (toggle) toggle.addEventListener('click', function() {
+		var cur = document.documentElement.getAttribute('data-theme');
+		applyTheme(cur === 'dark' ? 'light' : 'dark');
+	});
+
 	// Insight toggles
 	var btns = document.querySelectorAll('.insight-header');
 	for (var j = 0; j < btns.length; j++) {
@@ -612,6 +659,8 @@ h2:first-of-type { margin-top: 48px; }
 			try {
 				var p = JSON.parse(e.data);
 				if (p.html) {
+					// Preserve current theme before replacing body
+					var currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
 					// Only replace the body content to preserve <style> and <script>
 					var d = new DOMParser().parseFromString(p.html, 'text/html');
 					var newBody = d.querySelector('body');
@@ -622,6 +671,25 @@ h2:first-of-type { margin-top: 48px; }
 					if (newTitle) {
 						document.title = newTitle.textContent || document.title;
 					}
+					// Restore theme after body replacement
+					applyTheme(currentTheme);
+					// Re-bind new theme toggle button
+					var newToggle = document.getElementById('themeToggle');
+					if (newToggle) {
+						newToggle.addEventListener('click', function() {
+							var cur = document.documentElement.getAttribute('data-theme');
+							applyTheme(cur === 'dark' ? 'light' : 'dark');
+						});
+					}
+					// Re-bind new file search/filter
+					var ns = document.getElementById('fileSearch');
+					var nf = document.getElementById('fileFilter');
+					if (ns) ns.addEventListener('input', update);
+					if (nf) nf.addEventListener('change', update);
+					// Re-query cards after body replacement
+					cards = Array.from(document.getElementById('fileGrid').querySelectorAll('.file-card'));
+					total = cards.length;
+					update();
 				}
 			} catch(_) {}
 		};

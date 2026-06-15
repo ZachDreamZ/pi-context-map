@@ -6,7 +6,7 @@
 import type { ContextComposition } from "./analyzer";
 import type { Insight } from "./insights";
 export declare class ReportGenerator {
-    static generateHTML(composition: ContextComposition, insights: Insight[]): string;
+    static generateHTML(composition: ContextComposition, insights: Insight[], contextWindow?: number): string;
     static writeReport(html: string): string;
     private static seg;
     private static getOpIcon;
