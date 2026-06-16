@@ -6,9 +6,6 @@
 
 import type { ContextComposition } from "./analyzer";
 import type { Insight } from "./insights";
-import { writeFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
 
 export class ReportGenerator {
 	public static generateHTML(
@@ -28,7 +25,7 @@ export class ReportGenerator {
 		const fileCards = composition.files_detail
 			.map(
 				(file) => `
-			<div class="file-card" data-path="${ReportGenerator.escapeHtml(file.path)}" data-status="${file.status}">
+			<div class="file-card" data-path="${ReportGenerator.escapeAttr(file.path)}" data-status="${ReportGenerator.escapeAttr(file.status)}">
 				<div class="file-card-top">
 					<span class="file-path">${ReportGenerator.escapeHtml(file.path)}</span>
 					<span class="file-weight">${file.weight.toLocaleString()}</span>
@@ -38,6 +35,7 @@ export class ReportGenerator {
 					<span class="status-chip ${file.status}">${file.status}</span>
 				</div>
 				<div class="file-bar">
+					<!-- File weight bar scaled 3x for visibility of small values -->
 					<div class="file-bar-fill" style="width: ${Math.min(100, (file.weight / Math.max(1, total)) * 100 * 3)}%"></div>
 				</div>
 			</div>`,
@@ -717,14 +715,6 @@ h2:first-of-type { margin-top: 48px; }
 </html>`;
 	}
 
-	public static writeReport(html: string): string {
-		const reportDir = join(homedir(), ".pi", "context-map");
-		mkdirSync(reportDir, { recursive: true });
-		const reportPath = join(reportDir, "report.html");
-		writeFileSync(reportPath, html, "utf8");
-		return reportPath;
-	}
-
 	private static seg(cls: string, pct: number): string {
 		return pct > 0
 			? `<div class="bar-seg ${cls}" style="width:${pct}%"></div>`
@@ -753,5 +743,15 @@ h2:first-of-type { margin-top: 48px; }
 			.replace(/>/g, "&gt;")
 			.replace(/"/g, "&quot;")
 			.replace(/'/g, "&#039;");
+	}
+
+	/** Escape text for use in HTML attributes */
+	private static escapeAttr(text: string): string {
+		return text
+			.replace(/&/g, "&amp;")
+			.replace(/"/g, "&quot;")
+			.replace(/'/g, "&#039;")
+			.replace(/</g, "&lt;")
+			.replace(/>/g, "&gt;");
 	}
 }

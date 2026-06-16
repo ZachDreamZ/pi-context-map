@@ -41,6 +41,7 @@ function isAllowedOrigin(origin: string | undefined, port: number): boolean {
 export class LiveReportServer {
 	private server: http.Server | null = null;
 	private clients: Set<http.ServerResponse> = new Set();
+	private heartbeats: Set<NodeJS.Timeout> = new Set();
 	private currentHtml: string = "";
 	private port: number = 0;
 	private host: string = "127.0.0.1";
@@ -90,6 +91,12 @@ export class LiveReportServer {
 	public stop(): void {
 		if (!this.server) return;
 
+		// Clear all heartbeat intervals
+		for (const h of this.heartbeats) {
+			clearInterval(h);
+		}
+		this.heartbeats.clear();
+
 		// Close all SSE clients
 		for (const client of this.clients) {
 			try {
@@ -101,8 +108,12 @@ export class LiveReportServer {
 		this.clients.clear();
 
 		// Force-close all connections synchronously (Node 18.2+)
+		// Fallback for older Node.js versions
 		if (typeof this.server.closeAllConnections === "function") {
 			this.server.closeAllConnections();
+		} else {
+			// Graceful fallback - close server and let connections drain
+			this.server.close();
 		}
 
 		// Close server and reset state synchronously
@@ -275,12 +286,15 @@ export class LiveReportServer {
 				res.write(": heartbeat\n\n");
 			} catch {
 				clearInterval(heartbeat);
+				this.heartbeats.delete(heartbeat);
 				this.clients.delete(res);
 			}
 		}, 30000);
+		this.heartbeats.add(heartbeat);
 
 		req.on("close", () => {
 			clearInterval(heartbeat);
+			this.heartbeats.delete(heartbeat);
 			this.clients.delete(res);
 		});
 	}

@@ -53,6 +53,10 @@ function openBrowser(url: string): void {
 	}
 }
 
+// Store handlers for proper cleanup
+let sigintHandler: (() => void) | null = null;
+let sigtermHandler: (() => void) | null = null;
+
 export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	const analyzer = new ContextAnalyzer();
 	const liveServer = new LiveReportServer();
@@ -85,8 +89,10 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 					actualPercent = usage.percent;
 				}
 			}
-		} catch {
-			// Keep fallback
+		} catch (err: any) {
+			if (process.env.DEBUG || process.env.PI_DEBUG) {
+				console.error("[pi-context-map] Context usage error:", err.message);
+			}
 		}
 		// Get system prompt from Pi
 		try {
@@ -94,8 +100,10 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			if (sp && typeof sp === "string") {
 				systemPrompt = sp;
 			}
-		} catch {
-			// Keep empty
+		} catch (err: any) {
+			if (process.env.DEBUG || process.env.PI_DEBUG) {
+				console.error("[pi-context-map] System prompt error:", err.message);
+			}
 		}
 	});
 
@@ -118,8 +126,10 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 					turn: currentTurn,
 					timestamp: Date.now(),
 				});
-			} catch {
-				// Ignore persistence errors
+			} catch (err: any) {
+				if (process.env.DEBUG || process.env.PI_DEBUG) {
+					console.error("[pi-context-map] Persistence error:", err.message);
+				}
 			}
 		}
 	});
@@ -171,18 +181,21 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 			actualTokens,
 		);
 
-		try {
-			const dir = path.dirname(currentReportPath);
-			if (!fs.existsSync(dir)) {
-				fs.mkdirSync(dir, { recursive: true });
-			}
-			fs.writeFileSync(currentReportPath, html, "utf8");
-		} catch (err: any) {
-			// Silent — don't spam console
-		}
-
+		// Write to disk if server not running (server.update handles it when running)
 		if (liveServer.isRunning) {
 			liveServer.update(html, currentReportPath);
+		} else {
+			try {
+				const dir = path.dirname(currentReportPath);
+				if (!fs.existsSync(dir)) {
+					fs.mkdirSync(dir, { recursive: true });
+				}
+				fs.writeFileSync(currentReportPath, html, "utf8");
+			} catch (err: any) {
+				if (process.env.DEBUG || process.env.PI_DEBUG) {
+					console.error("[pi-context-map] Report write error:", err.message);
+				}
+			}
 		}
 
 		return { composition, insights, reportPath: currentReportPath };
@@ -294,8 +307,8 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		},
 	});
 
-	pi.on("session_before_compact", (_event: any, ctx: any) => {
-		const tokens = _event?.preparation?.tokensBefore;
+	pi.on("session_before_compact", (event: any, ctx: any) => {
+		const tokens = event?.preparation?.tokensBefore;
 		if (tokens && tokens > 100_000) {
 			ctx.ui.notify(
 				`High context load (${(tokens / 1000).toFixed(1)}k tokens). Try /context-map to see what's consuming space.`,
@@ -307,15 +320,17 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 	let lastAnalysisTime = 0;
 	const ANALYSIS_THROTTLE_MS = 5000; // Don't run analysis more than once per 5 seconds
 
-	pi.on("message_end", async (_event: any) => {
-		if (_event?.message?.role === "assistant" && liveServer.isRunning) {
+	pi.on("message_end", async (event: any) => {
+		if (event?.message?.role === "assistant" && liveServer.isRunning) {
 			const now = Date.now();
 			if (now - lastAnalysisTime < ANALYSIS_THROTTLE_MS) return;
 			lastAnalysisTime = now;
 			try {
 				await runAnalysis();
-			} catch {
-				// Ignore auto-refresh failures
+			} catch (err: any) {
+				if (process.env.DEBUG || process.env.PI_DEBUG) {
+					console.error("[pi-context-map] Auto-refresh error:", err.message);
+				}
 			}
 		}
 	});
@@ -324,9 +339,13 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		liveServer.stop();
 	});
 
-	// Use once to prevent stacking on reload
-	process.removeAllListeners("SIGINT");
-	process.removeAllListeners("SIGTERM");
-	process.once("SIGINT", () => liveServer.stop());
-	process.once("SIGTERM", () => liveServer.stop());
+	// Clean up any previous handlers to prevent stacking
+	if (sigintHandler) process.removeListener("SIGINT", sigintHandler);
+	if (sigtermHandler) process.removeListener("SIGTERM", sigtermHandler);
+
+	// Register new handlers
+	sigintHandler = () => liveServer.stop();
+	sigtermHandler = () => liveServer.stop();
+	process.once("SIGINT", sigintHandler);
+	process.once("SIGTERM", sigtermHandler);
 }

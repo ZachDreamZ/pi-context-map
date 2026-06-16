@@ -7,8 +7,9 @@ import type { ContextComposition } from "./analyzer";
 import type { Insight } from "./insights";
 export declare class ReportGenerator {
     static generateHTML(composition: ContextComposition, insights: Insight[], contextWindow?: number, actualTokens?: number | null): string;
-    static writeReport(html: string): string;
     private static seg;
     private static getOpIcon;
     private static escapeHtml;
+    /** Escape text for use in HTML attributes */
+    private static escapeAttr;
 }

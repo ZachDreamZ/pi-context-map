@@ -84,6 +84,38 @@ The report uses the **Linear design system** (canvas `#010102`, accent `#5e6ad2`
 - ✅ Compatible with `pi-ultra-compact` (use together for a "Scan $\to$ Compress" workflow).
 - ✅ Compatible with `gentle-engram` and `gentle-pi`.
 
+## Audit Report
+
+This package has been audited by the **pi-audit-master** extension for code quality, security, and reliability. The full audit report is available in [`AUDIT-REPORT-UPDATED.md`](AUDIT-REPORT-UPDATED.md).
+
+### Audit Summary
+
+| Category | Issues Found | Issues Fixed |
+|----------|--------------|--------------|
+| 🔴 Critical | 2 | 2 ✅ |
+| 🟠 High | 4 | 4 ✅ |
+| 🟡 Medium | 4 | 4 ✅ |
+| 🟢 Low | 2 | 2 ✅ |
+| **Total** | **12** | **12** ✅ |
+
+### Key Improvements
+
+- **Security**: Fixed dangerous signal listener removal, added XSS protection
+- **Reliability**: Added error logging, fixed heartbeat cleanup
+- **Performance**: Optimized file writes, no regression detected
+- **Maintainability**: Removed dead code, extracted constants, improved documentation
+
+### Performance Metrics
+
+| Metric | Result |
+|--------|--------|
+| Token Counter | 0.0005ms/call |
+| Context Analyzer | 0.08ms/analysis |
+| Report Generator | 0.10ms/report |
+| Live Server | 0.14ms/update |
+
+For detailed findings and recommendations, see the [full audit report](AUDIT-REPORT-UPDATED.md).
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

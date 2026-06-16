@@ -6,9 +6,6 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReportGenerator = void 0;
-const node_fs_1 = require("node:fs");
-const node_path_1 = require("node:path");
-const node_os_1 = require("node:os");
 class ReportGenerator {
     static generateHTML(composition, insights, contextWindow = 128_000, actualTokens) {
         // Use Pi's actual token count when available
@@ -18,7 +15,7 @@ class ReportGenerator {
         const usagePercent = total > 0 ? Math.round((total / contextWindow) * 100) : 0;
         const fileCards = composition.files_detail
             .map((file) => `
-			<div class="file-card" data-path="${ReportGenerator.escapeHtml(file.path)}" data-status="${file.status}">
+			<div class="file-card" data-path="${ReportGenerator.escapeAttr(file.path)}" data-status="${ReportGenerator.escapeAttr(file.status)}">
 				<div class="file-card-top">
 					<span class="file-path">${ReportGenerator.escapeHtml(file.path)}</span>
 					<span class="file-weight">${file.weight.toLocaleString()}</span>
@@ -28,6 +25,7 @@ class ReportGenerator {
 					<span class="status-chip ${file.status}">${file.status}</span>
 				</div>
 				<div class="file-bar">
+					<!-- File weight bar scaled 3x for visibility of small values -->
 					<div class="file-bar-fill" style="width: ${Math.min(100, (file.weight / Math.max(1, total)) * 100 * 3)}%"></div>
 				</div>
 			</div>`)
@@ -701,13 +699,6 @@ h2:first-of-type { margin-top: 48px; }
 </body>
 </html>`;
     }
-    static writeReport(html) {
-        const reportDir = (0, node_path_1.join)((0, node_os_1.homedir)(), ".pi", "context-map");
-        (0, node_fs_1.mkdirSync)(reportDir, { recursive: true });
-        const reportPath = (0, node_path_1.join)(reportDir, "report.html");
-        (0, node_fs_1.writeFileSync)(reportPath, html, "utf8");
-        return reportPath;
-    }
     static seg(cls, pct) {
         return pct > 0
             ? `<div class="bar-seg ${cls}" style="width:${pct}%"></div>`
@@ -734,6 +725,15 @@ h2:first-of-type { margin-top: 48px; }
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+    }
+    /** Escape text for use in HTML attributes */
+    static escapeAttr(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
     }
 }
 exports.ReportGenerator = ReportGenerator;

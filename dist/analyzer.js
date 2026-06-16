@@ -18,6 +18,11 @@ exports.ContextAnalyzer = void 0;
  * ToolCall:           { type: "toolCall", id, name, arguments }
  */
 const token_counter_1 = require("./token-counter");
+/** File status thresholds for position-based calculation */
+const FILE_STATUS_THRESHOLDS = {
+    ACTIVE: 0.7,
+    STALE: 0.3,
+};
 class ContextAnalyzer {
     analyzeByType(messages, _currentTurn, systemPrompt) {
         const fileRegistry = new Map();
@@ -233,7 +238,7 @@ class ContextAnalyzer {
             return typeof args.path === "string" ? args.path : null;
         }
         if (toolName === "bash") {
-            const match = args.command?.match(/(?:cat|ls|rm|mv|cp|vi|nano)\s+([^\s;]+)/);
+            const match = args.command?.match(/(?:cat|ls|rm|mv|cp|vi|nano|touch|head|tail|grep|sed|awk|mkdir|chmod|chown|find|xargs|tee|diff|patch|install|unzip|tar)\s+([^\s;]+)/);
             return match ? match[1] : null;
         }
         return null;
@@ -274,9 +279,9 @@ class ContextAnalyzer {
         if (totalMessages === 0)
             return "legacy";
         const ratio = messageIndex / totalMessages;
-        if (ratio >= 0.7)
+        if (ratio >= FILE_STATUS_THRESHOLDS.ACTIVE)
             return "active";
-        if (ratio >= 0.3)
+        if (ratio >= FILE_STATUS_THRESHOLDS.STALE)
             return "stale";
         return "legacy";
     }

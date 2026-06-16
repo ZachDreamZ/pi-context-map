@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.6] - 2026-06-16
+### Security & Reliability (Audit Fix Release)
+- **Fixed critical signal listener removal**: Replaced dangerous `process.removeAllListeners()` with proper handler tracking and cleanup. No longer affects other extensions.
+- **Added XSS protection**: New `escapeAttr()` function for HTML attribute escaping, preventing potential injection attacks.
+- **Added debug logging**: Silent catch blocks now log errors when `DEBUG=1` or `PI_DEBUG=1` environment variables are set.
+- **Optimized file writes**: Eliminated redundant disk writes when live server is running.
+- **Expanded bash detection**: File tracking now recognizes 20+ file operation commands (touch, grep, sed, awk, mkdir, etc.).
+- **Added Node.js fallback**: Graceful handling for older Node.js versions without `closeAllConnections()`.
+- **Removed dead code**: Deleted unused `writeReport()` method and related imports.
+- **Extracted constants**: Magic numbers replaced with named `FILE_STATUS_THRESHOLDS` object.
+- **Fixed heartbeat cleanup**: Server now properly clears all heartbeat intervals on stop.
+- **Improved file path regex**: More specific extension matching reduces false positives.
+- **Fixed naming conventions**: Removed underscore prefixes from used parameters.
+- **Added documentation**: Visual multiplier in file bars now documented.
+- **Performance verified**: All metrics pass thresholds with no regression.
+- **Audit report**: Full audit available in `AUDIT-REPORT-UPDATED.md`.
+
 ## [0.7.5] - 2026-06-16
 ### Bug Fixes
 - Fixed process handler stacking: `SIGINT`/`SIGTERM` now use `once()` + `removeAllListeners` to prevent orphaned servers on extension reload.

@@ -83,6 +83,9 @@ function openBrowser(url) {
         // Silent — browser open is best-effort
     }
 }
+// Store handlers for proper cleanup
+let sigintHandler = null;
+let sigtermHandler = null;
 async function piContextMap(pi) {
     const analyzer = new analyzer_1.ContextAnalyzer();
     const liveServer = new live_server_1.LiveReportServer();
@@ -114,8 +117,10 @@ async function piContextMap(pi) {
                 }
             }
         }
-        catch {
-            // Keep fallback
+        catch (err) {
+            if (process.env.DEBUG || process.env.PI_DEBUG) {
+                console.error("[pi-context-map] Context usage error:", err.message);
+            }
         }
         // Get system prompt from Pi
         try {
@@ -124,8 +129,10 @@ async function piContextMap(pi) {
                 systemPrompt = sp;
             }
         }
-        catch {
-            // Keep empty
+        catch (err) {
+            if (process.env.DEBUG || process.env.PI_DEBUG) {
+                console.error("[pi-context-map] System prompt error:", err.message);
+            }
         }
     });
     pi.on("turn_start", () => {
@@ -146,8 +153,10 @@ async function piContextMap(pi) {
                     timestamp: Date.now(),
                 });
             }
-            catch {
-                // Ignore persistence errors
+            catch (err) {
+                if (process.env.DEBUG || process.env.PI_DEBUG) {
+                    console.error("[pi-context-map] Persistence error:", err.message);
+                }
             }
         }
     });
@@ -172,18 +181,23 @@ async function piContextMap(pi) {
         }
         const insights = insights_1.InsightEngine.generate(composition, contextWindow);
         const html = generator_1.ReportGenerator.generateHTML(composition, insights, contextWindow, actualTokens);
-        try {
-            const dir = path.dirname(currentReportPath);
-            if (!fs.existsSync(dir)) {
-                fs.mkdirSync(dir, { recursive: true });
-            }
-            fs.writeFileSync(currentReportPath, html, "utf8");
-        }
-        catch (err) {
-            // Silent — don't spam console
-        }
+        // Write to disk if server not running (server.update handles it when running)
         if (liveServer.isRunning) {
             liveServer.update(html, currentReportPath);
+        }
+        else {
+            try {
+                const dir = path.dirname(currentReportPath);
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+                fs.writeFileSync(currentReportPath, html, "utf8");
+            }
+            catch (err) {
+                if (process.env.DEBUG || process.env.PI_DEBUG) {
+                    console.error("[pi-context-map] Report write error:", err.message);
+                }
+            }
         }
         return { composition, insights, reportPath: currentReportPath };
     }
@@ -267,16 +281,16 @@ async function piContextMap(pi) {
             }
         },
     });
-    pi.on("session_before_compact", (_event, ctx) => {
-        const tokens = _event?.preparation?.tokensBefore;
+    pi.on("session_before_compact", (event, ctx) => {
+        const tokens = event?.preparation?.tokensBefore;
         if (tokens && tokens > 100_000) {
             ctx.ui.notify(`High context load (${(tokens / 1000).toFixed(1)}k tokens). Try /context-map to see what's consuming space.`, "info");
         }
     });
     let lastAnalysisTime = 0;
     const ANALYSIS_THROTTLE_MS = 5000; // Don't run analysis more than once per 5 seconds
-    pi.on("message_end", async (_event) => {
-        if (_event?.message?.role === "assistant" && liveServer.isRunning) {
+    pi.on("message_end", async (event) => {
+        if (event?.message?.role === "assistant" && liveServer.isRunning) {
             const now = Date.now();
             if (now - lastAnalysisTime < ANALYSIS_THROTTLE_MS)
                 return;
@@ -284,17 +298,24 @@ async function piContextMap(pi) {
             try {
                 await runAnalysis();
             }
-            catch {
-                // Ignore auto-refresh failures
+            catch (err) {
+                if (process.env.DEBUG || process.env.PI_DEBUG) {
+                    console.error("[pi-context-map] Auto-refresh error:", err.message);
+                }
             }
         }
     });
     pi.on("session_shutdown", () => {
         liveServer.stop();
     });
-    // Use once to prevent stacking on reload
-    process.removeAllListeners("SIGINT");
-    process.removeAllListeners("SIGTERM");
-    process.once("SIGINT", () => liveServer.stop());
-    process.once("SIGTERM", () => liveServer.stop());
+    // Clean up any previous handlers to prevent stacking
+    if (sigintHandler)
+        process.removeListener("SIGINT", sigintHandler);
+    if (sigtermHandler)
+        process.removeListener("SIGTERM", sigtermHandler);
+    // Register new handlers
+    sigintHandler = () => liveServer.stop();
+    sigtermHandler = () => liveServer.stop();
+    process.once("SIGINT", sigintHandler);
+    process.once("SIGTERM", sigtermHandler);
 }

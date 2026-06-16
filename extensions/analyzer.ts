@@ -16,6 +16,12 @@
  */
 import { TokenCounter } from "./token-counter";
 
+/** File status thresholds for position-based calculation */
+const FILE_STATUS_THRESHOLDS = {
+	ACTIVE: 0.7,
+	STALE: 0.3,
+} as const;
+
 export interface FileOp {
 	type: "read" | "write" | "edit" | "delete";
 	turn: number;
@@ -296,7 +302,7 @@ export class ContextAnalyzer {
 		}
 		if (toolName === "bash") {
 			const match = args.command?.match(
-				/(?:cat|ls|rm|mv|cp|vi|nano)\s+([^\s;]+)/,
+				/(?:cat|ls|rm|mv|cp|vi|nano|touch|head|tail|grep|sed|awk|mkdir|chmod|chown|find|xargs|tee|diff|patch|install|unzip|tar)\s+([^\s;]+)/,
 			);
 			return match ? match[1] : null;
 		}
@@ -341,8 +347,8 @@ export class ContextAnalyzer {
 	): FileContext["status"] {
 		if (totalMessages === 0) return "legacy";
 		const ratio = messageIndex / totalMessages;
-		if (ratio >= 0.7) return "active";
-		if (ratio >= 0.3) return "stale";
+		if (ratio >= FILE_STATUS_THRESHOLDS.ACTIVE) return "active";
+		if (ratio >= FILE_STATUS_THRESHOLDS.STALE) return "stale";
 		return "legacy";
 	}
 
