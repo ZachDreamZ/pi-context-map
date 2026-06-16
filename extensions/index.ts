@@ -324,10 +324,9 @@ export default async function piContextMap(pi: ExtensionAPI): Promise<void> {
 		liveServer.stop();
 	});
 
-	process.on("SIGINT", () => {
-		liveServer.stop();
-	});
-	process.on("SIGTERM", () => {
-		liveServer.stop();
-	});
+	// Use once to prevent stacking on reload
+	process.removeAllListeners("SIGINT");
+	process.removeAllListeners("SIGTERM");
+	process.once("SIGINT", () => liveServer.stop());
+	process.once("SIGTERM", () => liveServer.stop());
 }

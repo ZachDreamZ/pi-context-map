@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.7.5] - 2026-06-16
+### Bug Fixes
+- Fixed process handler stacking: `SIGINT`/`SIGTERM` now use `once()` + `removeAllListeners` to prevent orphaned servers on extension reload.
+
 ## [0.7.4] - 2026-06-16
 ### Performance & Reliability
 - **Throttled auto-refresh**: `message_end` handler now throttles analysis to max once per 5 seconds. Prevents expensive I/O spam during rapid assistant responses.
